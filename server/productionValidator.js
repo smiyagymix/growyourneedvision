@@ -5,8 +5,6 @@
 
 const requiredVars = [
   'NODE_ENV',
-  'STRIPE_SECRET_KEY',
-  'STRIPE_PUBLISHABLE_KEY',
   'JWT_SECRET',
   'SESSION_SECRET',
   'POCKETBASE_URL',
@@ -30,20 +28,33 @@ export function validateEnvironment() {
     warnings.push('NODE_ENV is not set to "production"');
   }
 
-  // Check required variables
+  // Check required variables (core)
   for (const varName of requiredVars) {
     if (!process.env[varName]) {
       errors.push(`Required environment variable ${varName} is not set`);
     }
   }
 
+  // Payments: only required when FEATURE_PAYMENTS=true
+  const paymentsEnabled = (process.env.FEATURE_PAYMENTS || '').toString().toLowerCase() === 'true';
+  if (paymentsEnabled) {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      errors.push('STRIPE_SECRET_KEY is required when FEATURE_PAYMENTS=true');
+    }
+    if (!process.env.STRIPE_PUBLISHABLE_KEY) {
+      errors.push('STRIPE_PUBLISHABLE_KEY is required when FEATURE_PAYMENTS=true');
+    }
+  }
+
   // Check for test/demo keys in production
   if (process.env.NODE_ENV === 'production') {
-    if (process.env.STRIPE_SECRET_KEY?.includes('sk_test_')) {
-      errors.push('CRITICAL: Test Stripe key detected in production!');
-    }
-    if (process.env.STRIPE_PUBLISHABLE_KEY?.includes('pk_test_')) {
-      errors.push('CRITICAL: Test Stripe publishable key detected in production!');
+    if (paymentsEnabled) {
+      if (process.env.STRIPE_SECRET_KEY?.includes('sk_test_')) {
+        errors.push('CRITICAL: Test Stripe key detected in production!');
+      }
+      if (process.env.STRIPE_PUBLISHABLE_KEY?.includes('pk_test_')) {
+        errors.push('CRITICAL: Test Stripe publishable key detected in production!');
+      }
     }
     if (process.env.JWT_SECRET === 'your-secret-key' || 
         process.env.JWT_SECRET?.length < 32) {
@@ -92,12 +103,14 @@ export function validateEnvironment() {
 }
 
 export function getEnvironmentInfo() {
+  const paymentsEnabled = (process.env.FEATURE_PAYMENTS || '').toString().toLowerCase() === 'true';
   return {
     nodeEnv: process.env.NODE_ENV,
     port: process.env.PORT || 3001,
     pocketbaseUrl: process.env.POCKETBASE_URL,
     aiServiceUrl: process.env.AI_SERVICE_URL,
-    stripeMode: process.env.STRIPE_SECRET_KEY?.startsWith('sk_live_') ? 'LIVE' : 'TEST',
+    paymentsEnabled,
+    stripeMode: paymentsEnabled ? (process.env.STRIPE_SECRET_KEY?.startsWith('sk_live_') ? 'LIVE' : 'TEST') : 'DISABLED',
     sentryEnabled: !!process.env.SENTRY_DSN,
     redisEnabled: !!process.env.REDIS_URL,
     s3Enabled: !!process.env.AWS_S3_BUCKET,
@@ -117,7 +130,8 @@ export function printEnvironmentInfo() {
   console.log(`  Server Port: ${info.port}`);
   console.log(`  PocketBase URL: ${info.pocketbaseUrl}`);
   console.log(`  AI Service URL: ${info.aiServiceUrl}`);
-  console.log(`  Stripe Mode: ${info.stripeMode} ${info.stripeMode === 'LIVE' ? '✅' : '⚠️'}`);
+  console.log(`  Payments: ${info.paymentsEnabled ? '✅ Enabled' : '❌ Disabled'}`);
+  console.log(`  Stripe Mode: ${info.stripeMode}`);
   console.log(`  Sentry: ${info.sentryEnabled ? '✅ Enabled' : '❌ Disabled'}`);
   console.log(`  Redis Cache: ${info.redisEnabled ? '✅ Enabled' : '⚠️  In-Memory Only'}`);
   console.log(`  S3 Storage: ${info.s3Enabled ? '✅ Enabled' : '⚠️  Local Only'}`);

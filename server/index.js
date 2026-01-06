@@ -155,10 +155,14 @@ const requireTenant = (req, res, next) => {
     next();
 };
 
-// Initialize Stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-    apiVersion: '2023-10-16', // Use a fixed API version
-});
+// Payments feature flag and conditional Stripe init
+const PAYMENTS_ENABLED = (process.env.FEATURE_PAYMENTS || '').toString().toLowerCase() === 'true';
+let stripe = null;
+if (PAYMENTS_ENABLED && process.env.STRIPE_SECRET_KEY) {
+    stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+        apiVersion: '2023-10-16', // Use a fixed API version
+    });
+}
 
 const PB_URL = process.env.POCKETBASE_URL;
 const PB_TOKEN = process.env.POCKETBASE_SERVICE_TOKEN;
@@ -324,7 +328,7 @@ app.get('/api/health', (req, res) => {
     res.json({
         status: 'ok',
         service: 'payment-server',
-        stripe: !!process.env.STRIPE_SECRET_KEY,
+        stripe: PAYMENTS_ENABLED && !!process.env.STRIPE_SECRET_KEY,
         pocketbase: !!process.env.POCKETBASE_URL && !!process.env.POCKETBASE_SERVICE_TOKEN,
         uptimeSeconds: Math.floor(process.uptime()),
         metrics: {
@@ -398,6 +402,10 @@ app.post('/api/payments/create-intent', requireApiKey, requireTenant, async (req
     try {
         const { amount, currency, description, metadata, receipt_email } = req.body;
 
+        if (!PAYMENTS_ENABLED || !stripe) {
+            return res.status(501).json({ message: 'Payments are disabled' });
+        }
+
         const paymentIntent = await stripe.paymentIntents.create({
             amount,
             currency,
@@ -429,6 +437,10 @@ app.post('/api/payments/create-intent', requireApiKey, requireTenant, async (req
 app.post('/api/payments/confirm', requireApiKey, requireTenant, async (req, res) => {
     try {
         const { payment_intent_id, payment_method_id } = req.body;
+
+        if (!PAYMENTS_ENABLED || !stripe) {
+            return res.status(501).json({ message: 'Payments are disabled' });
+        }
 
         const paymentIntent = await stripe.paymentIntents.confirm(payment_intent_id, {
             payment_method: payment_method_id,
@@ -471,6 +483,10 @@ app.post('/api/payments/confirm', requireApiKey, requireTenant, async (req, res)
 app.post('/api/payments/create-subscription', requireApiKey, requireTenant, async (req, res) => {
     try {
         const { email, payment_method_id, plan_id, user_id } = req.body;
+
+        if (!PAYMENTS_ENABLED || !stripe) {
+            return res.status(501).json({ message: 'Payments are disabled' });
+        }
 
         // 1. Create or get customer
         let customer;
@@ -557,6 +573,10 @@ app.post('/api/payments/cancel-subscription', requireApiKey, requireTenant, asyn
     try {
         const { subscription_id, cancel_at_period_end } = req.body;
 
+        if (!PAYMENTS_ENABLED || !stripe) {
+            return res.status(501).json({ message: 'Payments are disabled' });
+        }
+
         let subscription;
         if (cancel_at_period_end) {
             subscription = await stripe.subscriptions.update(subscription_id, {
@@ -591,6 +611,10 @@ app.post('/api/payments/cancel-subscription', requireApiKey, requireTenant, asyn
 app.post('/api/payments/save-method', requireApiKey, requireTenant, async (req, res) => {
     try {
         const { payment_method_id } = req.body;
+
+        if (!PAYMENTS_ENABLED || !stripe) {
+            return res.status(501).json({ message: 'Payments are disabled' });
+        }
 
         const paymentMethod = await stripe.paymentMethods.retrieve(payment_method_id);
 
@@ -3217,6 +3241,9 @@ app.post('/api/coupons/send-email', requireApiKey, async (req, res) => {
 });
 
 app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+    if (!PAYMENTS_ENABLED) {
+        return res.status(204).end();
+    }
     const sig = req.headers['stripe-signature'];
     const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 

@@ -9,7 +9,8 @@ export default defineConfig(({ mode }) => {
   return {
     server: {
       port: 3001,
-      host: '0.0.0.0',
+      host: 'localhost',
+      strictPort: true,
       cors: true,
       headers: {
         'Access-Control-Allow-Origin': '*',
@@ -29,6 +30,10 @@ export default defineConfig(({ mode }) => {
         ignored: ['**/pocketbase/**', '**/pb_data/**', '**/*.db', '**/*.db-journal', '**/test_output.txt', '**/ai_service/**', '**/chroma_db/**'],
       },
       hmr: {
+        host: 'localhost',
+        port: 3001,
+        clientPort: 3001,
+        protocol: 'ws',
         overlay: false, // Disable error overlay for performance
       },
     },

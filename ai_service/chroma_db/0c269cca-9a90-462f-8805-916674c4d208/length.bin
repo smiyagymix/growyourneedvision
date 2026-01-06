@@ -1,0 +1,13 @@
+// Monitor audit log size
+const auditStats = await auditService.getAuditStats();
+if (auditStats.total > 100000) {
+    console.warn('Audit logs exceeding 100k entries. Consider archiving.');
+}
+```
+
+## 🔒 Security Checklist
+
+- [ ] Stripe keys validated (live/test mode matching)
+- [ ] PocketBase URL is HTTPS in production
+- [ ] Audit logging enabled for all export operations
+vice.cached(\n \"Learn.
