@@ -1,0 +1,27 @@
+{
+  "name": "grow-your-need",
+  "description": "Complete Education Management Platform with Gamification",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "build:production": "node build-production.cjs",
+    "build:types": "tsc --noEmit",
+    "preview": "vite preview",
+    "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "seed": "node seed-all-data.cjs",
+    "setup:db": "node init-payment-collections.cjs",
+    "serve:build": "npx serve build"
+  },
+  "keywords": [
+    "education",
+    "school-management",
+    "gamification",
+    "learning-platform",
+    "react",
+    "typescript",
+    "pocketbase"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}

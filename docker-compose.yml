@@ -1,0 +1,418 @@
+version: "3.8"
+
+services:
+  # ---------------------------------------------------------------------------
+  # 🛒 E-COMMERCE: Medusa.js
+  # ---------------------------------------------------------------------------
+  medusa-db:
+    image: postgres:14
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U medusa -d medusa-store" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      POSTGRES_USER: medusa
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: medusa-store
+    volumes:
+      - medusa-db-data:/var/lib/postgresql/data
+    networks:
+      - grow-network
+
+  medusa-server:
+    image: medusajs/medusa
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+    depends_on:
+      medusa-db:
+        condition: service_healthy
+      medusa-redis:
+        condition: service_started
+    ports:
+      - "9000:9000"
+    environment:
+      DATABASE_URL: postgres://medusa:${POSTGRES_PASSWORD}@medusa-db:5432/medusa-store
+      REDIS_URL: redis://medusa-redis:6379
+      JWT_SECRET: ${JWT_SECRET}
+      COOKIE_SECRET: ${JWT_SECRET}
+    networks:
+      - grow-network
+
+  medusa-redis:
+    image: redis:6
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - grow-network
+
+  # ---------------------------------------------------------------------------
+  # ☁️ FILE STORAGE: MinIO (S3 Compatible)
+  # ---------------------------------------------------------------------------
+  minio:
+    image: minio/minio
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    command: server /data --console-address ":9001"
+    ports:
+      - "9090:9000" # API port
+      - "9091:9001" # Console port
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio-data:/data
+    networks:
+      - grow-network
+
+  # ---------------------------------------------------------------------------
+  # 💳 PAYMENTS: Hyperswitch
+  # ---------------------------------------------------------------------------
+  hyperswitch-db:
+    image: postgres:14
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U hyperswitch -d hyperswitch" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      POSTGRES_USER: hyperswitch
+      POSTGRES_PASSWORD: ${HYPERSWITCH_PASSWORD}
+      POSTGRES_DB: hyperswitch
+    volumes:
+      - hyperswitch-db-data:/var/lib/postgresql/data
+    networks:
+      - grow-network
+
+  hyperswitch:
+    image: juspaydotin/hyperswitch:latest
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+    depends_on:
+      hyperswitch-db:
+        condition: service_healthy
+      hyperswitch-redis:
+        condition: service_started
+    ports:
+      - "8080:8080"
+    environment:
+      ROUTER__SERVER__PORT: 8080
+      ROUTER__DATABASE__HOST: hyperswitch-db
+      ROUTER__DATABASE__PORT: 5432
+      ROUTER__DATABASE__USER: hyperswitch
+      ROUTER__DATABASE__PASSWORD: ${HYPERSWITCH_PASSWORD}
+      ROUTER__DATABASE__DBNAME: hyperswitch
+      ROUTER__REDIS__HOST: hyperswitch-redis
+      ROUTER__REDIS__PORT: 6379
+    networks:
+      - grow-network
+
+  hyperswitch-redis:
+    image: redis:6
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - grow-network
+
+  # ---------------------------------------------------------------------------
+  # 📊 ANALYTICS: Plausible
+  # ---------------------------------------------------------------------------
+  plausible-db:
+    image: clickhouse/clickhouse-server:23.3.7.5-alpine
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 2G
+    healthcheck:
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:8123/ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    volumes:
+      - plausible-db-data:/var/lib/clickhouse
+      - ./clickhouse-config.xml:/etc/clickhouse-server/config.d/logging.xml:ro
+      - ./clickhouse-user-config.xml:/etc/clickhouse-server/users.d/logging.xml:ro
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    networks:
+      - grow-network
+
+  plausible:
+    image: plausible/analytics:v2.0
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+    depends_on:
+      plausible-db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      BASE_URL: http://localhost:8000
+      CLICKHOUSE_DATABASE_URL: http://plausible-db:8123/plausible_events_db
+      SECRET_KEY_BASE: ${PLAUSIBLE_SECRET_KEY_BASE}
+    networks:
+      - grow-network
+
+  # ---------------------------------------------------------------------------
+  # 🎨 DESIGN: Penpot
+  # ---------------------------------------------------------------------------
+  penpot-frontend:
+    image: penpotapp/frontend:latest
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+    ports:
+      - "9002:80"
+    volumes:
+      - penpot-assets:/opt/data/assets
+    depends_on:
+      - penpot-backend
+      - penpot-exporter
+    networks:
+      - grow-network
+
+  penpot-backend:
+    image: penpotapp/backend:latest
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+    volumes:
+      - penpot-assets:/opt/data/assets
+    depends_on:
+      penpot-postgres:
+        condition: service_healthy
+      penpot-redis:
+        condition: service_started
+    environment:
+      PENPOT_FLAGS: "enable-registration enable-login disable-email-verification enable-smtp enable-prepl-server"
+      PENPOT_PUBLIC_URI: "http://localhost:9002"
+      PENPOT_DATABASE_URI: "postgresql://penpot-postgres/penpot"
+      PENPOT_REDIS_URI: "redis://penpot-redis/0"
+      PENPOT_ASSETS_STORAGE_BACKEND: "assets-fs"
+      PENPOT_STORAGE_ASSETS_FS_DIRECTORY: "/opt/data/assets"
+      PENPOT_TELEMETRY_ENABLED: "false"
+    networks:
+      - grow-network
+
+  penpot-exporter:
+    image: penpotapp/exporter:latest
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+    environment:
+      PENPOT_PUBLIC_URI: "http://penpot-frontend"
+      PENPOT_REDIS_URI: "redis://penpot-redis/0"
+    networks:
+      - grow-network
+
+  penpot-postgres:
+    image: postgres:15
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U penpot -d penpot" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+      POSTGRES_DB: penpot
+      POSTGRES_USER: penpot
+      POSTGRES_PASSWORD: ${PENPOT_DB_PASSWORD}
+    volumes:
+      - penpot-postgres-data:/var/lib/postgresql/data
+    networks:
+      - grow-network
+
+  penpot-redis:
+    image: redis:7
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - grow-network
+
+  # ---------------------------------------------------------------------------
+  # 🧠 AI SERVICE: Concierge
+  # ---------------------------------------------------------------------------
+  ai-service:
+    build: ./ai_service
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 4G
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./docs:/docs
+    environment:
+      - AI_PROVIDER=ollama
+      - AI_MODEL=qwen2.5:1.5b
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434/v1
+      - POCKETBASE_URL=http://pocketbase:8090
+      - POCKETBASE_ADMIN_EMAIL=${POCKETBASE_ADMIN_EMAIL}
+      - POCKETBASE_ADMIN_PASSWORD=${POCKETBASE_ADMIN_PASSWORD}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      pocketbase:
+        condition: service_healthy
+    networks:
+      - grow-network
+
+  # ---------------------------------------------------------------------------
+  # 🗄️ DATABASE: PocketBase
+  # ---------------------------------------------------------------------------
+  pocketbase:
+    image: ghcr.io/muchobien/pocketbase:latest
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+    healthcheck:
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:8090/api/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    ports:
+      - "8090:8090"
+    volumes:
+      - ./pocketbase/pb_data:/pb_data
+      - ./pocketbase/pb_public:/pb_public
+    command: --encryptionEnv=PB_ENCRYPTION_KEY
+    environment:
+      - PB_ENCRYPTION_KEY=${PB_ENCRYPTION_KEY}
+    networks:
+      - grow-network
+
+  # ---------------------------------------------------------------------------
+  # 🚀 FRONTEND & BACKEND SERVER
+  # ---------------------------------------------------------------------------
+  server:
+    build: ./server
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - POCKETBASE_URL=http://pocketbase:8090
+      - NODE_ENV=production
+      - ALERT_WEBHOOK_URL=${ALERT_WEBHOOK_URL}
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
+    depends_on:
+      pocketbase:
+        condition: service_healthy
+    networks:
+      - grow-network
+
+  frontend:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    environment:
+      - VITE_POCKETBASE_URL=http://localhost:8090 # Access via browser
+      - VITE_AI_SERVICE_URL=http://localhost:8000
+      - VITE_PAYMENT_SERVER_URL=http://localhost:3001
+    depends_on:
+      - server
+      - ai-service
+    networks:
+      - grow-network
+
+networks:
+  grow-network:
+    driver: bridge
+
+volumes:
+  medusa-db-data:
+  minio-data:
+  hyperswitch-db-data:
+  plausible-db-data:
+  penpot-postgres-data:
+  penpot-assets:

@@ -1,0 +1,64 @@
+{
+    "name": "GROW-YOUR-NEED Video Editor",
+    "version": "1.0.0",
+    "description": "Professional video editor with advanced features",
+    "author": "GROW-YOUR-NEED Team",
+    "license": "MIT",
+    "features": {
+        "templates": 3,
+        "effects": 8,
+        "filters": 15,
+        "transitions": 5,
+        "motionPresets": 12,
+        "exportFormats": 3,
+        "exportPresets": 8,
+        "colorGrades": 6
+    },
+    "capabilities": [
+        "Multi-template support (Educational, Corporate, Minimal)",
+        "Advanced keyframe animation system",
+        "Real-time preview with adaptive quality",
+        "Multi-track audio mixer",
+        "SRT subtitle support",
+        "15 professional video filters",
+        "12 motion graphics presets",
+        "Batch export processing",
+        "Project version control",
+        "Plugin architecture",
+        "Performance monitoring",
+        "Analytics tracking"
+    ],
+    "exportFormats": [
+        "MP4",
+        "GIF",
+        "WebM"
+    ],
+    "requirements": {
+        "node": ">=18.0.0",
+        "remotion": "^4.0.278",
+        "react": "^19.0.0"
+    },
+    "performance": {
+        "maxVideoLength": "10 minutes",
+        "supportedResolutions": [
+            "4K",
+            "1080p",
+            "720p",
+            "480p"
+        ],
+        "supportedFrameRates": [
+            30,
+            60
+        ],
+        "maxFileSize": {
+            "image": "10MB",
+            "video": "100MB",
+            "audio": "20MB"
+        }
+    },
+    "integrations": {
+        "storage": "MinIO",
+        "database": "PocketBase",
+        "rendering": "Remotion"
+    }
+}

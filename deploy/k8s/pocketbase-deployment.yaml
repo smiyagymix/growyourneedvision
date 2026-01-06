@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grow-your-need-pocketbase
+  labels:
+    app: grow-your-need
+    component: pocketbase
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: grow-your-need
+      component: pocketbase
+  template:
+    metadata:
+      labels:
+        app: grow-your-need
+        component: pocketbase
+    spec:
+      containers:
+      - name: pocketbase
+        image: growyourneed/pocketbase:latest
+        ports:
+        - containerPort: 8090
+        volumeMounts:
+        - name: pb-data
+          mountPath: /pb_data
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 8090
+          initialDelaySeconds: 15
+      volumes:
+      - name: pb-data
+        persistentVolumeClaim:
+          claimName: pb-data-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pocketbase-service
+spec:
+  selector:
+    app: grow-your-need
+    component: pocketbase
+  ports:
+    - protocol: TCP
+      port: 8090
+      targetPort: 8090

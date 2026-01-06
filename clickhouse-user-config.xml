@@ -1,0 +1,8 @@
+<clickhouse>
+    <profiles>
+        <default>
+            <log_queries>0</log_queries>
+            <log_queries_min_type>EXCEPTION_WHILE_PROCESSING</log_queries_min_type>
+        </default>
+    </profiles>
+</clickhouse>

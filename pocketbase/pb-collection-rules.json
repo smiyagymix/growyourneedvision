@@ -1,0 +1,171 @@
+{
+    "collections": [
+        {
+            "name": "tenants",
+            "rules": {
+                "listRule": "@request.auth.id != '' && (@request.auth.role = 'Owner' || @request.auth.tenant = id)",
+                "viewRule": "@request.auth.id != '' && (@request.auth.role = 'Owner' || @request.auth.tenant = id)",
+                "createRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "updateRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "deleteRule": "@request.auth.id != '' && @request.auth.role = 'Owner'"
+            }
+        },
+        {
+            "name": "invoices",
+            "rules": {
+                "listRule": "@request.auth.id != '' && (@request.auth.role = 'Owner' || @request.auth.tenant = tenant)",
+                "viewRule": "@request.auth.id != '' && (@request.auth.role = 'Owner' || @request.auth.tenant = tenant)",
+                "createRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "updateRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "deleteRule": "@request.auth.id != '' && @request.auth.role = 'Owner'"
+            }
+        },
+        {
+            "name": "deals",
+            "rules": {
+                "listRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "viewRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "createRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "updateRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "deleteRule": "@request.auth.id != '' && @request.auth.role = 'Owner'"
+            }
+        },
+        {
+            "name": "contacts",
+            "rules": {
+                "listRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "viewRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "createRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "updateRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "deleteRule": "@request.auth.id != '' && @request.auth.role = 'Owner'"
+            }
+        },
+        {
+            "name": "ai_logs",
+            "rules": {
+                "listRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "viewRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "createRule": null,
+                "updateRule": null,
+                "deleteRule": "@request.auth.id != '' && @request.auth.role = 'Owner'"
+            }
+        },
+        {
+            "name": "audit_logs",
+            "rules": {
+                "listRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "viewRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "createRule": null,
+                "updateRule": null,
+                "deleteRule": "@request.auth.id != '' && @request.auth.role = 'Owner'"
+            }
+        },
+        {
+            "name": "analytics_pages",
+            "rules": {
+                "listRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "viewRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "createRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "updateRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "deleteRule": "@request.auth.id != '' && @request.auth.role = 'Owner'"
+            }
+        },
+        {
+            "name": "analytics_sources",
+            "rules": {
+                "listRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "viewRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "createRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "updateRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "deleteRule": "@request.auth.id != '' && @request.auth.role = 'Owner'"
+            }
+        },
+        {
+            "name": "finance_expenses",
+            "rules": {
+                "listRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "viewRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "createRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "updateRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "deleteRule": "@request.auth.id != '' && @request.auth.role = 'Owner'"
+            }
+        },
+        {
+            "name": "system_health",
+            "rules": {
+                "listRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "viewRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "createRule": null,
+                "updateRule": null,
+                "deleteRule": "@request.auth.id != '' && @request.auth.role = 'Owner'"
+            }
+        },
+        {
+            "name": "system_alerts",
+            "rules": {
+                "listRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "viewRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "createRule": null,
+                "updateRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "deleteRule": "@request.auth.id != '' && @request.auth.role = 'Owner'"
+            }
+        },
+        {
+            "name": "subscription_plans",
+            "rules": {
+                "listRule": "@request.auth.id != ''",
+                "viewRule": "@request.auth.id != ''",
+                "createRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "updateRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "deleteRule": "@request.auth.id != '' && @request.auth.role = 'Owner'"
+            }
+        },
+        {
+            "name": "business_rules",
+            "rules": {
+                "listRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "viewRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "createRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "updateRule": "@request.auth.id != '' && @request.auth.role = 'Owner'",
+                "deleteRule": "@request.auth.id != '' && @request.auth.role = 'Owner'"
+            }
+        },
+        {
+            "name": "marketplace_apps",
+            "rules": {
+                "listRule": "@request.auth.id != ''",
+                "viewRule": "@request.auth.id != ''",
+                "createRule": "@request.auth.id != ''",
+                "updateRule": "@request.auth.id != '' && (@request.auth.role = 'Owner' || @request.auth.id = owner)",
+                "deleteRule": "@request.auth.id != '' && @request.auth.role = 'Owner'"
+            }
+        },
+        {
+            "name": "social_posts",
+            "rules": {
+                "listRule": "@request.auth.id != '' && (@request.auth.role = 'Owner' || @request.auth.tenant = tenant)",
+                "viewRule": "@request.auth.id != '' && (@request.auth.role = 'Owner' || @request.auth.tenant = tenant)",
+                "createRule": "@request.auth.id != ''",
+                "updateRule": "@request.auth.id != '' && (@request.auth.role = 'Owner' || @request.auth.id = created_by)",
+                "deleteRule": "@request.auth.id != '' && (@request.auth.role = 'Owner' || @request.auth.id = created_by)"
+            }
+        },
+        {
+            "name": "community_posts",
+            "rules": {
+                "listRule": "@request.auth.id != ''",
+                "viewRule": "@request.auth.id != ''",
+                "createRule": "@request.auth.id != ''",
+                "updateRule": "@request.auth.id != '' && (@request.auth.role = 'Owner' || @request.auth.id = author)",
+                "deleteRule": "@request.auth.id != '' && (@request.auth.role = 'Owner' || @request.auth.id = author)"
+            }
+        }
+    ],
+    "notes": [
+        "These rules implement Row-Level Security (RLS) for all major collections",
+        "Owner role has full access to platform-wide data",
+        "Other roles can only access their tenant-specific data",
+        "System collections (audit_logs, ai_logs, system_health) are read-only for users",
+        "Apply these rules using the apply-pb-rules.ps1 script"
+    ]
+}

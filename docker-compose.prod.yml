@@ -1,0 +1,85 @@
+version: "3.8"
+
+services:
+  # ---------------------------------------------------------------------------
+  # 🚀 FRONTEND: React Application
+  # ---------------------------------------------------------------------------
+  webapp:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    image: grow-your-need-webapp:latest
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      pocketbase:
+        condition: service_healthy
+    environment:
+      - VITE_POCKETBASE_URL=https://api.yourdomain.com # Change for actual prod
+    networks:
+      - grow-network
+
+  # ---------------------------------------------------------------------------
+  # 🗄️ BACKEND: PocketBase
+  # ---------------------------------------------------------------------------
+  pocketbase:
+    image: ghcr.io/muchobien/pocketbase:latest
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8090/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    ports:
+      - "8090:8090"
+    volumes:
+      - ./pocketbase/pb_data:/pb_data
+      - ./pocketbase/pb_public:/pb_public
+    command: --encryptionEnv=PB_ENCRYPTION_KEY
+    environment:
+      - PB_ENCRYPTION_KEY=${PB_ENCRYPTION_KEY}
+    networks:
+      - grow-network
+
+  # ---------------------------------------------------------------------------
+  # 🧠 AI SERVICE: Python Wrapper
+  # ---------------------------------------------------------------------------
+  ai-service:
+    build: ./ai_service
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 4G
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./docs:/docs
+    environment:
+      - AI_PROVIDER=ollama
+      - AI_MODEL=qwen2.5:1.5b
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434/v1 # Needs external Ollama or service
+      - POCKETBASE_URL=http://pocketbase:8090
+      - POCKETBASE_ADMIN_EMAIL=${POCKETBASE_ADMIN_EMAIL}
+      - POCKETBASE_ADMIN_PASSWORD=${POCKETBASE_ADMIN_PASSWORD}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      pocketbase:
+        condition: service_healthy
+    networks:
+      - grow-network
+
+networks:
+  grow-network:
+    driver: bridge
+
+# Note: External services (Medusa, Penpot, etc.) are omitted for the core webapp production deployment
+# to keep resources manageable. They can be added to a separate 'platform' compose file.

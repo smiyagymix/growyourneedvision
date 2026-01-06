@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grow-your-need-ai
+  labels:
+    app: grow-your-need
+    component: ai-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grow-your-need
+      component: ai-service
+  template:
+    metadata:
+      labels:
+        app: grow-your-need
+        component: ai-service
+    spec:
+      containers:
+      - name: ai-service
+        image: growyourneed/ai-service:latest
+        ports:
+        - containerPort: 8000
+        envFrom:
+        - configMapRef:
+            name: ai-config
+        - secretRef:
+            name: ai-secrets
+        resources:
+          limits:
+            cpu: "1"
+            memory: 2Gi
+          requests:
+            cpu: 500m
+            memory: 1Gi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 45
+          periodSeconds: 15
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-service
+spec:
+  selector:
+    app: grow-your-need
+    component: ai-service
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000

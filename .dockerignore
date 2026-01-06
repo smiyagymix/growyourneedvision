@@ -1,0 +1,11 @@
+node_modules
+dist
+.git
+.github
+*.log
+.env*
+! .env.example
+playwright-report
+test-results
+pocketbase/pb_data
+pocketbase/pb_backups

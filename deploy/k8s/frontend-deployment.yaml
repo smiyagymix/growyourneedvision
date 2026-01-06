@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grow-your-need-frontend
+  labels:
+    app: grow-your-need
+    component: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: grow-your-need
+      component: frontend
+  template:
+    metadata:
+      labels:
+        app: grow-your-need
+        component: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: growyourneed/frontend:latest
+        ports:
+        - containerPort: 80
+        envFrom:
+        - configMapRef:
+            name: frontend-config
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 30
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+spec:
+  selector:
+    app: grow-your-need
+    component: frontend
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+  type: LoadBalancer

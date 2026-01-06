@@ -1,0 +1,272 @@
+@import "tailwindcss";
+
+/* Tailwind theme-level custom properties & animations */
+@theme {
+  --color-gyn-blueDark: #1d2a78;
+  --color-gyn-blueMedium: #3041c7;
+  --color-gyn-blueLight: #e9eaff;
+  --color-gyn-orange: #f5a623;
+  --color-gyn-tan: #fde8c5;
+  --color-gyn-white: #ffffff;
+  --color-gyn-frameBg: #e3e8f0;
+  --color-gyn-grey: #4a4a4a;
+  --color-gyn-bg-primary-light: #ffffff;
+  --color-gyn-bg-primary-dark: #1a1a1a;
+  --color-gyn-bg-secondary-light: #f3f4f6;
+  --color-gyn-border-primary-light: #e5e7eb;
+  --color-gyn-text-primary-light: #111827;
+  --color-gyn-text-secondary-light: #6b7280;
+
+  /* Legacy colors */
+  --color-deepBlue: #005A9C;
+  --color-vibrantTeal: #00A99D;
+  --color-energeticOrange: #F37021;
+  --color-darkTitanium: #252A34;
+  --color-brushedTitanium: #4A5568;
+  --color-matteSilicone: #374151;
+  --color-carbonFiberBase: #111827;
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  --font-machina: "Orbitron", sans-serif;
+
+  --shadow-neu-flat: 5px 5px 10px #d1d9e6, -5px -5px 10px #ffffff;
+  --shadow-neu-pressed: inset 5px 5px 10px #d1d9e6, inset -5px -5px 10px #ffffff;
+  --shadow-glass-edge: inset 0 1px 0 0 rgba(255, 255, 255, 0.4), 0 4px 30px rgba(0, 0, 0, 0.1);
+  --shadow-metal-bevel: inset 1px 1px 0px rgba(255, 255, 255, 0.3),
+    inset -1px -1px 0px rgba(0, 0, 0, 0.5), 0 4px 6px rgba(0, 0, 0, 0.3);
+
+  --animate-pulseGlow: pulseGlow 2.5s infinite ease-in-out;
+  --animate-subtleFlicker: subtleFlicker 1.5s infinite ease-in-out;
+  --animate-slideInLeft: slideInLeft 0.7s ease-out forwards;
+  --animate-slideInRight: slideInRight 0.7s ease-out forwards;
+  --animate-fadeIn: fadeIn 1s ease-out forwards;
+
+  @keyframes pulseGlow {
+
+    0%,
+    100% {
+      box-shadow:
+        0 0 15px 5px rgba(243, 112, 33, 0.7),
+        0 0 5px 2px rgba(243, 112, 33, 0.5) inset;
+    }
+
+    50% {
+      box-shadow:
+        0 0 25px 10px rgba(243, 112, 33, 1),
+        0 0 10px 4px rgba(243, 112, 33, 0.7) inset;
+    }
+  }
+
+  @keyframes subtleFlicker {
+
+    0%,
+    100% {
+      opacity: 1;
+    }
+
+    50% {
+      opacity: 0.95;
+    }
+  }
+
+  @keyframes slideInLeft {
+    from {
+      transform: translateX(-100%);
+      opacity: 0;
+    }
+
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideInRight {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
+  }
+}
+
+/* Base CSS variables (non-Tailwind) */
+:root {
+  --gyn-blue-dark: #1d2a78;
+  --gyn-blue-medium: #3041c7;
+  --gyn-blue-light: #e9eaff;
+  --gyn-orange: #f5a623;
+  --gyn-tan: #fde8c5;
+  --gyn-white: #ffffff;
+  --gyn-frame-bg: #e3e8f0;
+  --gyn-grey: #4a4a4a;
+}
+
+/* Make the app fully viewport-height aware */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+/* Global body styles + responsive overflow */
+body {
+  font-family: 'Inter', sans-serif;
+  overflow-x: hidden;
+  /* Allow vertical scroll by default (mobile) */
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  background-color: var(--gyn-frame-bg);
+}
+
+/* From tablet up, lock vertical scrolling on the body
+   (content scroll is handled inside layout containers) */
+@media (min-width: 768px) {
+  body {
+    overflow-y: hidden;
+  }
+}
+
+/* Custom scrollbars for elements using .gyn-scroll */
+.gyn-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.gyn-scroll::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.gyn-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.gyn-scroll::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Utility to hide scrollbars but keep scroll functionality */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+}
+
+/* --- Dark Mode Overrides --- */
+.dark {
+  --gyn-blue-dark: #60a5fa;
+  /* Blue 400 */
+  --gyn-blue-medium: #3b82f6;
+  /* Blue 500 */
+  --gyn-blue-light: #1e293b;
+  /* Slate 800 */
+  --gyn-orange: #fbbf24;
+  /* Amber 400 */
+  --gyn-tan: #334155;
+  /* Slate 700 */
+  --gyn-white: #1e293b;
+  /* Slate 800 */
+  --gyn-frame-bg: #0f172a;
+  /* Slate 900 */
+  --gyn-grey: #cbd5e1;
+  /* Slate 300 */
+
+  --gyn-bg-primary-light: #0f172a;
+  --gyn-bg-primary-dark: #f8fafc;
+  --gyn-bg-secondary-light: #1e293b;
+  --gyn-border-primary-light: #334155;
+  --gyn-text-primary-light: #f1f5f9;
+  --gyn-text-secondary-light: #94a3b8;
+
+  /* Dark Neumorphism */
+  --shadow-neu-flat: 5px 5px 10px #0b1120, -5px -5px 10px #253248;
+  --shadow-neu-pressed: inset 5px 5px 10px #0b1120, inset -5px -5px 10px #253248;
+  --shadow-glass-edge: inset 0 1px 0 0 rgba(255, 255, 255, 0.1),
+    0 4px 30px rgba(0, 0, 0, 0.3);
+}
+
+.dark body {
+  background-color: var(--gyn-frame-bg);
+  color: var(--gyn-text-primary-light);
+}
+
+/* Global Class Overrides for Dark Mode Adaptation */
+.dark .bg-white {
+  background-color: #1e293b !important;
+  /* Slate 800 */
+  color: #f1f5f9;
+  border-color: #334155;
+}
+
+.dark .bg-gray-50,
+.dark .bg-gray-100 {
+  background-color: #0f172a !important;
+  /* Slate 900 */
+  color: #f1f5f9;
+}
+
+.dark .bg-gray-200 {
+  background-color: #334155 !important;
+  /* Slate 700 */
+}
+
+.dark .text-gray-900,
+.dark .text-gray-800,
+.dark .text-gray-700 {
+  color: #f1f5f9 !important;
+  /* Slate 100 */
+}
+
+.dark .text-gray-600,
+.dark .text-gray-500,
+.dark .text-gray-400 {
+  color: #94a3b8 !important;
+  /* Slate 400 */
+}
+
+.dark .border-gray-200,
+.dark .border-gray-100,
+.dark .border-gray-300 {
+  border-color: #334155 !important;
+  /* Slate 700 */
+}
+
+.dark .shadow-sm,
+.dark .shadow-md,
+.dark .shadow-lg {
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.5),
+    0 2px 4px -1px rgba(0, 0, 0, 0.3) !important;
+}
+
+.dark .bg-white\/60 {
+  background-color: rgba(30, 41, 59, 0.8) !important;
+  /* Slate 800 with opacity */
+  backdrop-filter: blur(12px);
+}
+
+.dark .bg-white\/50 {
+  background-color: rgba(30, 41, 59, 0.5) !important;
+}

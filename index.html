@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grow Your Need</title>
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob: filesystem: about: ws: wss:; script-src * 'unsafe-inline' 'unsafe-eval' data: blob:; connect-src * 'unsafe-inline' 'unsafe-eval' data: blob: filesystem: about: ws: wss: http: https:; img-src * data: blob: 'unsafe-inline'; frame-src * data: blob: 'unsafe-inline'; style-src * 'unsafe-inline'; font-src * data: blob: 'unsafe-inline';">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Orbitron:wght@400;500;700&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --gyn-blue-dark: #1d2a78;
+      --gyn-blue-medium: #3041c7;
+      --gyn-blue-light: #e9eaff;
+      --gyn-orange: #f5a623;
+      --gyn-tan: #fde8c5;
+      --gyn-white: #ffffff;
+      --gyn-frame-bg: #e3e8f0;
+      --gyn-grey: #4a4a4a;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      overflow-x: hidden;
+      margin: 0;
+      padding: 0;
+      background-color: #ffffff;
+    }
+
+    .gyn-scroll::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    .gyn-scroll::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.05);
+    }
+
+    .gyn-scroll::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 3px;
+    }
+
+    .gyn-scroll::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+
+    /* Utility to hide scrollbars but keep functionality */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      /* IE and Edge */
+      scrollbar-width: none;
+      /* Firefox */
+    }
+  </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+</head>
+
+<body>
+  <noscript>You need to enable JavaScript to run this app.</noscript>
+  <div id="root"></div>
+    <script type="module" src="/src/index.tsx"></script>
+</body>
+
+</html>
