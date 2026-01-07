@@ -6,6 +6,7 @@ import { Button } from '../../../components/shared/ui/Button';
 import pb from '../../../lib/pocketbase';
 import { emailSchema } from '../../../validation/schemas';
 import { sanitizeText } from '../../../utils/sanitization';
+import { generateTemporaryPassword } from '../../../utils/securePassword';
 
 const bulkUserSchema = z.object({
     email: emailSchema,
@@ -80,15 +81,17 @@ export const BulkImport: React.FC<BulkImportProps> = ({ isOpen, onClose, onSucce
                     continue;
                 }
 
-                // Create user
+                // Create user with secure temporary password
+                const tempPassword = generateTemporaryPassword();
                 await pb.collection('users').create({
                     email: result.data.email,
                     name: result.data.name,
-                    password: 'password123', // Default password
-                    passwordConfirm: 'password123',
+                    password: tempPassword,
+                    passwordConfirm: tempPassword,
                     role: result.data.role,
                     emailVisibility: true,
-                    verified: true
+                    verified: true,
+                    mustChangePassword: true // Flag to require password change on first login
                 });
                 
                 setLogs(prev => [...prev, `✅ Created: ${result.data.email}`]);
