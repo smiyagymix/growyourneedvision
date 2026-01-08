@@ -29,6 +29,26 @@ export type WidgetType =
     | 'feature-adoption'
     | 'alerts-feed';
 
+import { 
+    WidgetConfigData, 
+    WidgetData,
+    ChartData,
+    TenantHealthData,
+    UsageData,
+    ChurnData,
+    ActiveUsersData,
+    StorageData,
+    APICallsData,
+    RecentSignupsData,
+    TrialConversionsData,
+    SupportTicketsData,
+    SystemStatusData,
+    MRRTrendData,
+    UserDistributionData,
+    FeatureAdoptionData,
+    AlertData
+} from '../types/dashboard';
+
 export interface WidgetConfig {
     id: string;
     type: WidgetType;
@@ -36,7 +56,7 @@ export interface WidgetConfig {
     y: number;
     width: number;
     height: number;
-    config?: Record<string, any>;
+    config?: WidgetConfigData;
 }
 
 export interface DashboardLayout extends RecordModel {
@@ -62,7 +82,7 @@ export interface WidgetDefinition {
     defaultSize: { width: number; height: number };
     minSize: { width: number; height: number };
     maxSize?: { width: number; height: number };
-    configSchema?: Record<string, any>;
+    configSchema?: Record<string, WidgetConfigData>;
 }
 
 // ==================== WIDGET DEFINITIONS ====================
@@ -481,7 +501,7 @@ class DashboardBuilderService {
         return WIDGET_DEFINITIONS.find(w => w.type === type);
     }
 
-    validateWidgetConfig(type: WidgetType, config: Record<string, any>): boolean {
+    validateWidgetConfig(type: WidgetType, config: WidgetConfigData): boolean {
         const definition = this.getWidgetDefinition(type);
         if (!definition || !definition.configSchema) return true;
 
@@ -491,12 +511,16 @@ class DashboardBuilderService {
             
             if (schema.type === 'number') {
                 if (typeof value !== 'number') return false;
-                if (schema.min !== undefined && value < schema.min) return false;
-                if (schema.max !== undefined && value > schema.max) return false;
+                const numValue = value as number;
+                const minValue = typeof schema.min === 'number' ? schema.min : undefined;
+                const maxValue = typeof schema.max === 'number' ? schema.max : undefined;
+                if (minValue !== undefined && numValue < minValue) return false;
+                if (maxValue !== undefined && numValue > maxValue) return false;
             }
             
             if (schema.type === 'select') {
-                if (!schema.options.includes(value)) return false;
+                if (!schema.options || !Array.isArray(schema.options)) return false;
+                if (typeof value !== 'string' || !schema.options.includes(value)) return false;
             }
             
             if (schema.type === 'boolean') {
@@ -509,7 +533,7 @@ class DashboardBuilderService {
 
     // ==================== WIDGET DATA FETCHING ====================
 
-    async getWidgetData(widget: WidgetConfig): Promise<any> {
+    async getWidgetData(widget: WidgetConfig): Promise<WidgetData> {
         if (isMockEnv()) {
             return this.getMockWidgetData(widget.type);
         }
@@ -563,30 +587,30 @@ class DashboardBuilderService {
 
     // ==================== DATA FETCHERS ====================
 
-    private async fetchRevenueData(config?: any): Promise<any> {
+    private async fetchRevenueData(config?: WidgetConfigData): Promise<ChartData> {
         const period = config?.period || '30d';
         const invoices = await pb.collection('invoices').getFullList({ requestKey: null });
         // Transform to chart data
         return { labels: [], datasets: [], total: invoices.length };
     }
 
-    private async fetchTenantHealthData(config?: any): Promise<any> {
+    private async fetchTenantHealthData(config?: WidgetConfigData): Promise<TenantHealthData[]> {
         const limit = config?.limit || 10;
         const tenants = await pb.collection('tenants').getFullList({ requestKey: null });
         return tenants.slice(0, limit).map(t => ({ id: t.id, name: t.name, score: 85 }));
     }
 
-    private async fetchUsageData(config?: any): Promise<any> {
+    private async fetchUsageData(config?: WidgetConfigData): Promise<UsageData> {
         const metric = config?.metric || 'users';
         const usage = await pb.collection('tenant_usage').getFullList({ requestKey: null });
         return { labels: [], datasets: [], metric };
     }
 
-    private async fetchChurnData(config?: any): Promise<any> {
+    private async fetchChurnData(config?: WidgetConfigData): Promise<ChurnData> {
         return { atRiskCount: 12, predictions: [] };
     }
 
-    private async fetchActiveUsersData(): Promise<any> {
+    private async fetchActiveUsersData(): Promise<ActiveUsersData> {
         const users = await pb.collection('users').getFullList({ 
             filter: 'lastActive >= @now',
             requestKey: null 
@@ -594,32 +618,36 @@ class DashboardBuilderService {
         return { count: users.length, trend: '+5%' };
     }
 
-    private async fetchStorageData(): Promise<any> {
+    private async fetchStorageData(): Promise<StorageData> {
         return { total: 1024000000, used: 512000000, byTenant: [] };
     }
 
-    private async fetchAPICallsData(config?: any): Promise<any> {
+    private async fetchAPICallsData(config?: WidgetConfigData): Promise<APICallsData> {
         return { total: 156000, rate: 650, limit: 1000000 };
     }
 
-    private async fetchRecentSignupsData(config?: any): Promise<any> {
+    private async fetchRecentSignupsData(config?: WidgetConfigData): Promise<RecentSignupsData[]> {
         const limit = config?.limit || 5;
         const tenants = await pb.collection('tenants').getFullList({ 
             sort: '-created',
             requestKey: null 
         });
-        return tenants.slice(0, limit);
+        return tenants.slice(0, limit).map(t => ({ 
+            id: t.id, 
+            name: (t as { name?: string }).name || '', 
+            created: t.created || new Date().toISOString() 
+        }));
     }
 
-    private async fetchTrialConversionsData(config?: any): Promise<any> {
+    private async fetchTrialConversionsData(config?: WidgetConfigData): Promise<TrialConversionsData> {
         return { rate: 68, count: 42, total: 62 };
     }
 
-    private async fetchSupportTicketsData(config?: any): Promise<any> {
+    private async fetchSupportTicketsData(config?: WidgetConfigData): Promise<SupportTicketsData> {
         return { open: 23, pending: 8, resolved: 145 };
     }
 
-    private async fetchSystemStatusData(): Promise<any> {
+    private async fetchSystemStatusData(): Promise<SystemStatusData> {
         return { 
             services: [
                 { name: 'API', status: 'healthy', uptime: 99.9 },
@@ -630,44 +658,48 @@ class DashboardBuilderService {
         };
     }
 
-    private async fetchMRRTrendData(): Promise<any> {
+    private async fetchMRRTrendData(): Promise<MRRTrendData> {
         return { current: 125000, growth: 12.5, history: [] };
     }
 
-    private async fetchUserDistributionData(config?: any): Promise<any> {
+    private async fetchUserDistributionData(config?: WidgetConfigData): Promise<UserDistributionData> {
         const groupBy = config?.groupBy || 'role';
         return { distribution: [], groupBy };
     }
 
-    private async fetchFeatureAdoptionData(config?: any): Promise<any> {
+    private async fetchFeatureAdoptionData(config?: WidgetConfigData): Promise<FeatureAdoptionData> {
         return { features: [], period: config?.period || '30d' };
     }
 
-    private async fetchAlertsData(config?: any): Promise<any> {
+    private async fetchAlertsData(config?: WidgetConfigData): Promise<AlertData[]> {
         const limit = config?.limit || 10;
         const alerts = await pb.collection('system_alerts').getFullList({ 
             sort: '-created',
             requestKey: null 
         });
-        return alerts.slice(0, limit);
+        return alerts.slice(0, limit).map(a => ({ 
+            id: a.id, 
+            message: (a as { message?: string }).message || '', 
+            severity: (a as { severity?: string }).severity || 'info' 
+        }));
     }
 
-    private getMockWidgetData(type: WidgetType): any {
-        const mockData: Record<WidgetType, any> = {
+    private getMockWidgetData(type: WidgetType): WidgetData {
+        const mockData: Record<WidgetType, WidgetData> = {
             'revenue-chart': { labels: ['Jan', 'Feb', 'Mar'], datasets: [{ data: [100000, 125000, 150000] }] },
             'tenant-health': [{ id: '1', name: 'Acme School', score: 92 }, { id: '2', name: 'Beta Academy', score: 85 }],
-            'usage-graph': { labels: ['Week 1', 'Week 2', 'Week 3'], datasets: [{ data: [1200, 1500, 1800] }] },
+            'usage-graph': { labels: ['Week 1', 'Week 2', 'Week 3'], datasets: [{ label: 'Usage', data: [1200, 1500, 1800] }], metric: 'users' },
             'churn-prediction': { atRiskCount: 12, predictions: [] },
             'active-users': { count: 1247, trend: '+5.2%' },
-            'storage-usage': { total: 1024000000, used: 512000000 },
-            'api-calls': { total: 156000, rate: 650 },
+            'storage-usage': { total: 1024000000, used: 512000000, byTenant: [] },
+            'api-calls': { total: 156000, rate: 650, limit: 1000000 },
             'recent-signups': [{ id: '1', name: 'New School', created: '2025-12-28' }],
-            'trial-conversions': { rate: 68, count: 42 },
-            'support-tickets': { open: 23, pending: 8 },
-            'system-status': { services: [{ name: 'API', status: 'healthy' }] },
-            'mrr-trend': { current: 125000, growth: 12.5 },
-            'user-distribution': { distribution: [] },
-            'feature-adoption': { features: [] },
+            'trial-conversions': { rate: 68, count: 42, total: 62 },
+            'support-tickets': { open: 23, pending: 8, resolved: 145 },
+            'system-status': { services: [{ name: 'API', status: 'healthy', uptime: 99.9 }] },
+            'mrr-trend': { current: 125000, growth: 12.5, history: [] },
+            'user-distribution': { distribution: [], groupBy: 'role' },
+            'feature-adoption': { features: [], period: '30d' },
             'alerts-feed': [{ id: '1', message: 'High CPU usage', severity: 'warning' }]
         };
         return mockData[type] || {};

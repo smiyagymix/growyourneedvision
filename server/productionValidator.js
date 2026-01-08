@@ -8,7 +8,8 @@ const requiredVars = [
   'JWT_SECRET',
   'SESSION_SECRET',
   'POCKETBASE_URL',
-  'CORS_ORIGINS'
+  'CORS_ORIGINS',
+  'SERVICE_API_KEY'
 ];
 
 const recommendedVars = [

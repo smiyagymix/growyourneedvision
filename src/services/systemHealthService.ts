@@ -1,7 +1,12 @@
-import pb from '../lib/pocketbase';
+import { pocketBaseClient } from '../lib/pocketbase';
+import { createTypedCollection } from '../lib/pocketbase-types';
 import { isMockEnv } from '../utils/mockData';
 import { RecordModel } from 'pocketbase';
 import { auditLog } from './auditLogger';
+import env from '../config/environment';
+import { Result, Ok, Err, Option, Some, None } from '../lib/types';
+import { AppError } from './errorHandler';
+import { HealthMetadata } from '../types/health';
 
 export interface HealthMetric extends RecordModel {
     id: string;
@@ -11,7 +16,7 @@ export interface HealthMetric extends RecordModel {
     response_time_ms?: number;
     last_check: string;
     error_message?: string;
-    metadata?: Record<string, unknown>;
+    metadata?: HealthMetadata;
     created: string;
     updated: string;
 }
@@ -33,13 +38,15 @@ export interface HealthCheckResult {
     checkedAt: string;
 }
 
-// Default services to monitor
-const DEFAULT_SERVICES: ServiceConfig[] = [
-    { name: 'pocketbase', endpoint: 'http://localhost:8090', healthPath: '/api/health', critical: true },
-    { name: 'ai_service', endpoint: 'http://localhost:8000', healthPath: '/health', critical: false },
-    { name: 'payment_server', endpoint: 'http://localhost:3001', healthPath: '/health', critical: true },
-    { name: 'frontend', endpoint: 'http://localhost:3000', healthPath: '/', critical: true }
+// Default services to monitor - using environment configuration
+const getDefaultServices = (): ServiceConfig[] => [
+    { name: 'pocketbase', endpoint: env.get('pocketbaseUrl'), healthPath: env.get('pocketbaseHealthPath'), critical: true },
+    { name: 'ai_service', endpoint: env.get('aiServiceUrl'), healthPath: env.get('aiServiceHealthPath'), critical: false },
+    { name: 'payment_server', endpoint: env.get('paymentServerUrl'), healthPath: env.get('paymentServerHealthPath'), critical: true },
+    { name: 'frontend', endpoint: env.get('frontendUrl'), healthPath: '/', critical: true }
 ];
+
+const DEFAULT_SERVICES: ServiceConfig[] = getDefaultServices();
 
 const MOCK_METRICS: HealthMetric[] = [
     {
@@ -82,8 +89,10 @@ const MOCK_METRICS: HealthMetric[] = [
 
 class SystemHealthService {
     private collection = 'system_health_metrics';
-    private services: ServiceConfig[] = DEFAULT_SERVICES;
+    private services: ServiceConfig[] = getDefaultServices();
     private healthCheckInterval: NodeJS.Timeout | null = null;
+    private pb = pocketBaseClient.getRawClient();
+    private metricsService = createTypedCollection<HealthMetric>(this.pb, this.collection);
 
     /**
      * Configure monitored services
@@ -102,34 +111,47 @@ class SystemHealthService {
     /**
      * Get all health metrics
      */
-    async getAllMetrics(): Promise<HealthMetric[]> {
+    async getAllMetrics(): Promise<Result<HealthMetric[], AppError>> {
         if (isMockEnv()) {
-            return MOCK_METRICS;
+            return Ok(MOCK_METRICS);
         }
 
         try {
-            const records = await pb.collection(this.collection).getFullList({
+            const result = await this.metricsService.getFullList({
                 sort: 'service_name',
                 requestKey: null
             });
-            return records as unknown as HealthMetric[];
+            if (result.success) {
+                return Ok(result.data);
+            }
+            return result;
         } catch (error) {
-            console.error('Failed to fetch health metrics:', error);
-            return [];
+            if (error instanceof AppError) {
+                return Err(error);
+            }
+            return Err(new AppError(
+                error instanceof Error ? error.message : 'Failed to fetch health metrics',
+                'METRICS_FETCH_FAILED',
+                500
+            ));
         }
     }
 
     /**
      * Get the most recent metric for each service
      */
-    async getLatestMetrics(): Promise<HealthMetric[]> {
+    async getLatestMetrics(): Promise<Result<HealthMetric[], AppError>> {
         if (isMockEnv()) {
-            // Return one metric per service (mock already has this)
-            return MOCK_METRICS;
+            return Ok(MOCK_METRICS);
         }
 
         try {
-            const allMetrics = await this.getAllMetrics();
+            const allMetricsResult = await this.getAllMetrics();
+            if (!allMetricsResult.success) {
+                return allMetricsResult;
+            }
+
+            const allMetrics = allMetricsResult.data;
             const latestByService = new Map<string, HealthMetric>();
 
             allMetrics.forEach(metric => {
@@ -139,38 +161,53 @@ class SystemHealthService {
                 }
             });
 
-            return Array.from(latestByService.values());
+            return Ok(Array.from(latestByService.values()));
         } catch (error) {
-            console.error('Failed to fetch latest metrics:', error);
-            return [];
+            if (error instanceof AppError) {
+                return Err(error);
+            }
+            return Err(new AppError(
+                error instanceof Error ? error.message : 'Failed to fetch latest metrics',
+                'LATEST_METRICS_FETCH_FAILED',
+                500
+            ));
         }
     }
 
     /**
      * Get metrics history for a specific service
      */
-    async getByService(serviceName: string, limit = 100): Promise<HealthMetric[]> {
+    async getByService(serviceName: string, limit = 100): Promise<Result<HealthMetric[], AppError>> {
         if (isMockEnv()) {
-            return MOCK_METRICS.filter(m => m.service_name === serviceName);
+            return Ok(MOCK_METRICS.filter(m => m.service_name === serviceName));
         }
 
         try {
-            const records = await pb.collection(this.collection).getList(1, limit, {
+            const result = await this.metricsService.getList(1, limit, {
                 filter: `service_name = "${serviceName}"`,
                 sort: '-last_check',
                 requestKey: null
             });
-            return records.items as unknown as HealthMetric[];
+            if (result.success) {
+                return Ok(result.data.items);
+            }
+            return result;
         } catch (error) {
-            console.error(`Failed to fetch metrics for ${serviceName}:`, error);
-            return [];
+            if (error instanceof AppError) {
+                return Err(error);
+            }
+            return Err(new AppError(
+                error instanceof Error ? error.message : `Failed to fetch metrics for ${serviceName}`,
+                'SERVICE_METRICS_FETCH_FAILED',
+                500
+            ));
         }
     }
 
     /**
      * Record a health metric
      */
-    async recordMetric(data: Omit<HealthMetric, 'id' | 'collectionId' | 'collectionName' | 'created' | 'updated'>): Promise<HealthMetric | null> {
+    async recordMetric(data: Omit<HealthMetric, 'id' | 'collectionId' | 'collectionName' | 'created' | 'updated'>): Promise<Result<HealthMetric, AppError>> {
         if (isMockEnv()) {
             const newMetric: HealthMetric = {
                 service_name: data.service_name,
@@ -187,15 +224,24 @@ class SystemHealthService {
                 updated: new Date().toISOString()
             };
             MOCK_METRICS.unshift(newMetric);
-            return newMetric;
+            return Ok(newMetric);
         }
 
         try {
-            const record = await pb.collection(this.collection).create(data);
-            return record as unknown as HealthMetric;
+            const result = await this.metricsService.create(data as Partial<HealthMetric>);
+            if (result.success) {
+                return Ok(result.data);
+            }
+            return result;
         } catch (error) {
-            console.error('Failed to record health metric:', error);
-            return null;
+            if (error instanceof AppError) {
+                return Err(error);
+            }
+            return Err(new AppError(
+                error instanceof Error ? error.message : 'Failed to record health metric',
+                'METRIC_RECORD_FAILED',
+                500
+            ));
         }
     }
 
@@ -242,7 +288,7 @@ class SystemHealthService {
 
         // Record the metric
         const uptime = status === 'healthy' ? 99.9 : status === 'degraded' ? 95.0 : 0;
-        await this.recordMetric({
+        const recordResult = await this.recordMetric({
             service_name: config.name,
             status,
             uptime_percentage: uptime,
@@ -250,6 +296,9 @@ class SystemHealthService {
             last_check: new Date().toISOString(),
             error_message: errorMessage
         });
+        if (!recordResult.success) {
+            console.error('Failed to record metric:', recordResult.error);
+        }
 
         return {
             service: config.name,
@@ -307,7 +356,7 @@ class SystemHealthService {
     /**
      * Get overall system health status
      */
-    async getOverallHealth(): Promise<{
+    async getOverallHealth(): Promise<Result<{
         status: 'healthy' | 'degraded' | 'down';
         healthy_count: number;
         degraded_count: number;
@@ -315,8 +364,12 @@ class SystemHealthService {
         total_count: number;
         message: string;
         critical_down: boolean;
-    }> {
-        const metrics = await this.getLatestMetrics();
+    }, AppError>> {
+        const metricsResult = await this.getLatestMetrics();
+        if (!metricsResult.success) {
+            return metricsResult;
+        }
+        const metrics = metricsResult.data;
         const healthyCount = metrics.filter(m => m.status === 'healthy').length;
         const degradedCount = metrics.filter(m => m.status === 'degraded').length;
         const downCount = metrics.filter(m => m.status === 'down').length;
@@ -341,7 +394,7 @@ class SystemHealthService {
             message = `${degradedCount} Service(s) Degraded`;
         }
 
-        return {
+        return Ok({
             status,
             healthy_count: healthyCount,
             degraded_count: degradedCount,
@@ -349,19 +402,23 @@ class SystemHealthService {
             total_count: totalCount,
             message,
             critical_down: criticalDown
-        };
+        });
     }
 
     /**
      * Get uptime statistics for a service
      */
-    async getUptimeStats(serviceName: string, days = 30): Promise<{
+    async getUptimeStats(serviceName: string, days = 30): Promise<Result<{
         uptime_percentage: number;
         avg_response_time: number;
         incidents: number;
         last_incident?: string;
-    }> {
-        const metrics = await this.getByService(serviceName, days * 24); // Assuming hourly checks
+    }, AppError>> {
+        const metricsResult = await this.getByService(serviceName, days * 24); // Assuming hourly checks
+        if (!metricsResult.success) {
+            return metricsResult;
+        }
+        const metrics = metricsResult.data;
         
         if (metrics.length === 0) {
             return {
@@ -381,18 +438,18 @@ class SystemHealthService {
         const incidents = metrics.filter(m => m.status === 'down').length;
         const lastIncident = metrics.find(m => m.status === 'down');
 
-        return {
+        return Ok({
             uptime_percentage: Math.round(uptimePercentage * 100) / 100,
             avg_response_time: Math.round(avgResponseTime),
             incidents,
             last_incident: lastIncident?.last_check
-        };
+        });
     }
 
     /**
      * Get system health dashboard data
      */
-    async getDashboardData(): Promise<{
+    async getDashboardData(): Promise<Result<{
         overall: {
             status: 'healthy' | 'degraded' | 'down';
             healthy_count: number;
@@ -404,9 +461,18 @@ class SystemHealthService {
         };
         services: Array<HealthMetric & { config: ServiceConfig | undefined }>;
         history: Map<string, number[]>;
-    }> {
-        const overall = await this.getOverallHealth();
-        const latestMetrics = await this.getLatestMetrics();
+    }, AppError>> {
+        const overallResult = await this.getOverallHealth();
+        if (!overallResult.success) {
+            return overallResult;
+        }
+        const overall = overallResult.data;
+
+        const latestMetricsResult = await this.getLatestMetrics();
+        if (!latestMetricsResult.success) {
+            return latestMetricsResult;
+        }
+        const latestMetrics = latestMetricsResult.data;
         
         const services = latestMetrics.map(m => ({
             ...m,
@@ -416,14 +482,16 @@ class SystemHealthService {
         // Get response time history for charts
         const history = new Map<string, number[]>();
         for (const service of this.services) {
-            const serviceMetrics = await this.getByService(service.name, 24);
-            history.set(
-                service.name, 
-                serviceMetrics.map(m => m.response_time_ms || 0).reverse()
-            );
+            const serviceMetricsResult = await this.getByService(service.name, 24);
+            if (serviceMetricsResult.success) {
+                history.set(
+                    service.name, 
+                    serviceMetricsResult.data.map(m => m.response_time_ms || 0).reverse()
+                );
+            }
         }
 
-        return { overall, services, history };
+        return Ok({ overall, services, history });
     }
 
     /**
@@ -470,15 +538,21 @@ class SystemHealthService {
             const cutoffDate = new Date();
             cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
             
-            const oldMetrics = await pb.collection(this.collection).getFullList({
+            const oldMetricsResult = await this.metricsService.getFullList({
                 filter: `created < "${cutoffDate.toISOString()}"`,
                 requestKey: null
             });
+            if (!oldMetricsResult.success) {
+                return 0;
+            }
+            const oldMetrics = oldMetricsResult.data;
 
             let deletedCount = 0;
             for (const metric of oldMetrics) {
-                await pb.collection(this.collection).delete(metric.id);
-                deletedCount++;
+                const deleteResult = await this.metricsService.delete(metric.id);
+                if (deleteResult.success) {
+                    deletedCount++;
+                }
             }
 
             if (deletedCount > 0) {

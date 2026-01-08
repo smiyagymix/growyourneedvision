@@ -14,6 +14,9 @@ import { ToastProvider } from './context/ToastContext';
 import { SoundProvider } from './context/SoundContext';
 import { SchoolProvider } from './apps/school/SchoolContext';
 import { BrandingProvider } from './context/BrandingContext';
+import { IntegrationProvider } from './context/IntegrationContext';
+import { ComplianceProvider } from './context/ComplianceContext';
+import { WhiteLabelProvider } from './context/WhiteLabelContext';
 
 // Components
 // Components - Static (Critical)
@@ -131,7 +134,12 @@ const AppContent: React.FC = () => {
   // Routes that use MainLayout and should take up the full screen (no global sidebar/margin)
   const isFullScreenRoute = ['/admin', '/school-admin', '/teacher', '/student', '/parent', '/individual'].some(path => location.pathname.startsWith(path));
 
-  const showOwnerBadge = isOwnerRoute || (typeof window !== 'undefined' && (window as any).__E2E_MOCK__);
+  // Type-safe E2E mock check
+  interface WindowWithE2E {
+    __E2E_MOCK__?: boolean;
+  }
+  const windowWithE2E = typeof window !== 'undefined' ? window as WindowWithE2E : null;
+  const showOwnerBadge = isOwnerRoute || (windowWithE2E?.__E2E_MOCK__ === true);
 
   return (
     <div className={`min-h-screen bg-gray-50 text-gray-900 font-sans selection:bg-gyn-blue-medium/30 ${sidebarExpanded ? 'sidebar-expanded' : ''}`}>
@@ -307,7 +315,8 @@ const App: React.FC = () => {
   React.useLayoutEffect(() => {
     if (typeof window !== 'undefined') {
       if (navigator.webdriver || import.meta.env.MODE === 'test') {
-        (window as any).__E2E_MOCK__ = true;
+        const windowWithE2E = window as WindowWithE2E;
+        windowWithE2E.__E2E_MOCK__ = true;
       }
 
       const hasHash = !!window.location.hash;
@@ -329,17 +338,23 @@ const App: React.FC = () => {
           <RealtimeProvider>
             <ThemeProvider>
               <BrandingProvider>
-                <OSProvider>
-                  <ToastProvider>
-                    <ModalProvider>
-                      <SoundProvider>
-                        <GlobalErrorBoundary>
-                          <AppContent />
-                        </GlobalErrorBoundary>
-                      </SoundProvider>
-                    </ModalProvider>
-                  </ToastProvider>
-                </OSProvider>
+                <IntegrationProvider>
+                  <ComplianceProvider>
+                    <WhiteLabelProvider>
+                      <OSProvider>
+                        <ToastProvider>
+                          <ModalProvider>
+                            <SoundProvider>
+                              <GlobalErrorBoundary>
+                                <AppContent />
+                              </GlobalErrorBoundary>
+                            </SoundProvider>
+                          </ModalProvider>
+                        </ToastProvider>
+                      </OSProvider>
+                    </WhiteLabelProvider>
+                  </ComplianceProvider>
+                </IntegrationProvider>
               </BrandingProvider>
             </ThemeProvider>
           </RealtimeProvider>

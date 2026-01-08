@@ -1,5 +1,10 @@
-import pb from '../lib/pocketbase';
+import { pocketBaseClient } from '../lib/pocketbase';
+import { createTypedCollection } from '../lib/pocketbase-types';
 import { isMockEnv } from '../utils/mockData';
+import env from '../config/environment';
+import { Result, Ok, Err, Option, Some, None } from '../lib/types';
+import { AppError, ValidationError } from './errorHandler';
+import { IntegrationConfigData } from '../types/integration';
 
 export interface IntegrationConfig {
     id: string;
@@ -8,7 +13,7 @@ export interface IntegrationConfig {
     provider: string;
     enabled: boolean;
     status: 'connected' | 'disconnected' | 'error';
-    config: Record<string, any>;
+    config: IntegrationConfigData;
     last_synced?: string;
     created?: string;
     updated?: string;
@@ -40,8 +45,8 @@ const MOCK_INTEGRATIONS: IntegrationConfig[] = [
         enabled: true,
         status: 'connected',
         config: {
-            tracking_id: 'G-XXXXXXXXX',
-            measurement_id: 'G-XXXXXXXXX'
+            tracking_id: env.get('googleAnalyticsId') || 'G-XXXXXXXXX',
+            measurement_id: env.get('googleAnalyticsId') || 'G-XXXXXXXXX'
         },
         last_synced: '5 minutes ago'
     },
@@ -127,68 +132,94 @@ const MOCK_INTEGRATIONS: IntegrationConfig[] = [
 
 const mockIntegrations = [...MOCK_INTEGRATIONS];
 
-export const integrationConfigService = {
+class IntegrationConfigService {
+    private pb = pocketBaseClient.getRawClient();
+    private integrationService = createTypedCollection<IntegrationConfig>(this.pb, 'integrations');
+
     /**
      * Get all integrations
      */
-    async getAll(): Promise<IntegrationConfig[]> {
+    async getAll(): Promise<Result<IntegrationConfig[], AppError>> {
         if (isMockEnv()) {
-            return mockIntegrations;
+            return Ok(mockIntegrations);
         }
         
         try {
-            const records = await pb.collection('integrations').getFullList<IntegrationConfig>({
+            const result = await this.integrationService.getFullList({
                 sort: 'category,name',
                 requestKey: null
             });
-            return records;
+            if (result.success) {
+                return Ok(result.data);
+            }
+            return result;
         } catch (error) {
-            console.error('Failed to fetch integrations:', error);
-            return mockIntegrations;
+            if (error instanceof AppError) {
+                return Err(error);
+            }
+            return Err(new AppError(
+                error instanceof Error ? error.message : 'Failed to fetch integrations',
+                'INTEGRATIONS_FETCH_FAILED',
+                500
+            ));
         }
-    },
+    }
 
     /**
      * Get integration by ID
      */
-    async getById(id: string): Promise<IntegrationConfig | null> {
+    async getById(id: string): Promise<Option<IntegrationConfig>> {
         if (isMockEnv()) {
-            return mockIntegrations.find(i => i.id === id) || null;
+            const integration = mockIntegrations.find(i => i.id === id);
+            return integration ? Some(integration) : None();
         }
         
         try {
-            return await pb.collection('integrations').getOne<IntegrationConfig>(id);
+            const result = await this.integrationService.getOne(id);
+            if (result.success) {
+                return Some(result.data);
+            }
+            return None();
         } catch (error) {
             console.error('Failed to fetch integration:', error);
-            return null;
+            return None();
         }
-    },
+    }
 
     /**
      * Get integrations by category
      */
-    async getByCategory(category: IntegrationConfig['category']): Promise<IntegrationConfig[]> {
+    async getByCategory(category: IntegrationConfig['category']): Promise<Result<IntegrationConfig[], AppError>> {
         if (isMockEnv()) {
-            return mockIntegrations.filter(i => i.category === category);
+            return Ok(mockIntegrations.filter(i => i.category === category));
         }
         
         try {
-            const records = await pb.collection('integrations').getFullList<IntegrationConfig>({
+            const result = await this.integrationService.getFullList({
                 filter: `category = "${category}"`,
                 sort: 'name',
                 requestKey: null
             });
-            return records;
+            if (result.success) {
+                return Ok(result.data);
+            }
+            return result;
         } catch (error) {
-            console.error('Failed to fetch integrations by category:', error);
-            return mockIntegrations.filter(i => i.category === category);
+            if (error instanceof AppError) {
+                return Err(error);
+            }
+            return Err(new AppError(
+                error instanceof Error ? error.message : 'Failed to fetch integrations by category',
+                'INTEGRATIONS_FETCH_FAILED',
+                500
+            ));
         }
-    },
+    }
 
     /**
      * Toggle integration enabled/disabled
      */
-    async toggleEnabled(id: string): Promise<IntegrationConfig | null> {
+    async toggleEnabled(id: string): Promise<Result<IntegrationConfig, AppError>> {
         if (isMockEnv()) {
             const index = mockIntegrations.findIndex(i => i.id === id);
             if (index !== -1) {
@@ -196,57 +227,84 @@ export const integrationConfigService = {
                     ...mockIntegrations[index],
                     enabled: !mockIntegrations[index].enabled
                 };
-                return mockIntegrations[index];
+                return Ok(mockIntegrations[index]);
             }
-            return null;
+            return Err(new AppError('Integration not found', 'NOT_FOUND', 404));
         }
         
         try {
-            const current = await this.getById(id);
-            if (!current) return null;
+            const currentOption = await this.getById(id);
+            if (!currentOption.some) {
+                return Err(new AppError('Integration not found', 'NOT_FOUND', 404));
+            }
+            const current = currentOption.value;
             
-            return await pb.collection('integrations').update<IntegrationConfig>(id, {
+            const result = await this.integrationService.update(id, {
                 enabled: !current.enabled
-            });
+            } as Partial<IntegrationConfig>);
+            
+            if (result.success) {
+                return Ok(result.data);
+            }
+            return result;
         } catch (error) {
-            console.error('Failed to toggle integration:', error);
-            return null;
+            if (error instanceof AppError) {
+                return Err(error);
+            }
+            return Err(new AppError(
+                error instanceof Error ? error.message : 'Failed to toggle integration',
+                'INTEGRATION_TOGGLE_FAILED',
+                500
+            ));
         }
-    },
+    }
 
     /**
      * Update integration config
      */
-    async updateConfig(id: string, config: Record<string, any>): Promise<IntegrationConfig | null> {
+    async updateConfig(id: string, config: Partial<IntegrationConfigData>): Promise<Result<IntegrationConfig, AppError>> {
         if (isMockEnv()) {
             const index = mockIntegrations.findIndex(i => i.id === id);
             if (index !== -1) {
                 mockIntegrations[index] = {
                     ...mockIntegrations[index],
-                    config,
+                    config: { ...mockIntegrations[index].config, ...config } as IntegrationConfigData,
                     updated: new Date().toISOString()
                 };
-                return mockIntegrations[index];
+                return Ok(mockIntegrations[index]);
             }
-            return null;
+            return Err(new AppError('Integration not found', 'NOT_FOUND', 404));
         }
         
         try {
-            return await pb.collection('integrations').update<IntegrationConfig>(id, { config });
+            const result = await this.integrationService.update(id, { 
+                config: config as IntegrationConfigData
+            } as Partial<IntegrationConfig>);
+            
+            if (result.success) {
+                return Ok(result.data);
+            }
+            return result;
         } catch (error) {
-            console.error('Failed to update integration config:', error);
-            return null;
+            if (error instanceof AppError) {
+                return Err(error);
+            }
+            return Err(new AppError(
+                error instanceof Error ? error.message : 'Failed to update integration config',
+                'INTEGRATION_UPDATE_FAILED',
+                500
+            ));
         }
-    },
+    }
 
     /**
      * Test integration connection
      */
-    async testConnection(id: string): Promise<{ success: boolean; message: string }> {
+    async testConnection(id: string): Promise<Result<{ message: string }, AppError>> {
         if (isMockEnv()) {
             const integration = mockIntegrations.find(i => i.id === id);
             if (!integration) {
-                return { success: false, message: 'Integration not found' };
+                return Err(new AppError('Integration not found', 'NOT_FOUND', 404));
             }
             
             // Simulate connection test
@@ -262,24 +320,35 @@ export const integrationConfigService = {
                         last_synced: 'Just now'
                     };
                 }
-                return { success: true, message: `Successfully connected to ${integration.provider}` };
+                return Ok({ message: `Successfully connected to ${integration.provider}` });
             }
-            return { success: false, message: 'Integration is disabled' };
+            return Err(new AppError('Integration is disabled', 'INTEGRATION_DISABLED', 400));
         }
         
         try {
             const response = await fetch(`/api/integrations/${id}/test`, { method: 'POST' });
-            const data = await response.json();
-            return data;
+            const data = await response.json() as { success: boolean; message: string };
+            
+            if (data.success) {
+                return Ok({ message: data.message });
+            }
+            return Err(new AppError(data.message, 'CONNECTION_TEST_FAILED', 500));
         } catch (error) {
-            return { success: false, message: 'Connection test failed' };
+            if (error instanceof AppError) {
+                return Err(error);
+            }
+            return Err(new AppError(
+                error instanceof Error ? error.message : 'Connection test failed',
+                'CONNECTION_TEST_FAILED',
+                500
+            ));
         }
-    },
+    }
 
     /**
      * Update integration status
      */
-    async updateStatus(id: string, status: IntegrationConfig['status']): Promise<IntegrationConfig | null> {
+    async updateStatus(id: string, status: IntegrationConfig['status']): Promise<Result<IntegrationConfig, AppError>> {
         if (isMockEnv()) {
             const index = mockIntegrations.findIndex(i => i.id === id);
             if (index !== -1) {
@@ -288,26 +357,37 @@ export const integrationConfigService = {
                     status,
                     last_synced: status === 'connected' ? 'Just now' : mockIntegrations[index].last_synced
                 };
-                return mockIntegrations[index];
+                return Ok(mockIntegrations[index]);
             }
-            return null;
+            return Err(new AppError('Integration not found', 'NOT_FOUND', 404));
         }
         
         try {
-            return await pb.collection('integrations').update<IntegrationConfig>(id, { 
+            const result = await this.integrationService.update(id, { 
                 status,
                 last_synced: status === 'connected' ? new Date().toISOString() : undefined
-            });
+            } as Partial<IntegrationConfig>);
+            
+            if (result.success) {
+                return Ok(result.data);
+            }
+            return result;
         } catch (error) {
-            console.error('Failed to update integration status:', error);
-            return null;
+            if (error instanceof AppError) {
+                return Err(error);
+            }
+            return Err(new AppError(
+                error instanceof Error ? error.message : 'Failed to update integration status',
+                'INTEGRATION_UPDATE_FAILED',
+                500
+            ));
         }
-    },
+    }
 
     /**
      * Create new integration
      */
-    async create(data: Omit<IntegrationConfig, 'id' | 'created' | 'updated'>): Promise<IntegrationConfig> {
+    async create(data: Omit<IntegrationConfig, 'id' | 'created' | 'updated'>): Promise<Result<IntegrationConfig, AppError>> {
         if (isMockEnv()) {
             const newIntegration: IntegrationConfig = {
                 ...data,
@@ -316,57 +396,85 @@ export const integrationConfigService = {
                 updated: new Date().toISOString()
             };
             mockIntegrations.push(newIntegration);
-            return newIntegration;
+            return Ok(newIntegration);
         }
         
-        return await pb.collection('integrations').create<IntegrationConfig>(data);
-    },
+        try {
+            const result = await this.integrationService.create(data as Partial<IntegrationConfig>);
+            if (result.success) {
+                return Ok(result.data);
+            }
+            return result;
+        } catch (error) {
+            if (error instanceof AppError) {
+                return Err(error);
+            }
+            return Err(new AppError(
+                error instanceof Error ? error.message : 'Failed to create integration',
+                'INTEGRATION_CREATE_FAILED',
+                500
+            ));
+        }
+    }
 
     /**
      * Delete integration
      */
-    async delete(id: string): Promise<boolean> {
+    async delete(id: string): Promise<Result<boolean, AppError>> {
         if (isMockEnv()) {
             const index = mockIntegrations.findIndex(i => i.id === id);
             if (index !== -1) {
                 mockIntegrations.splice(index, 1);
-                return true;
+                return Ok(true);
             }
-            return false;
+            return Err(new AppError('Integration not found', 'NOT_FOUND', 404));
         }
         
         try {
-            await pb.collection('integrations').delete(id);
-            return true;
+            const result = await this.integrationService.delete(id);
+            if (result.success) {
+                return Ok(true);
+            }
+            return result;
         } catch (error) {
-            console.error('Failed to delete integration:', error);
-            return false;
+            if (error instanceof AppError) {
+                return Err(error);
+            }
+            return Err(new AppError(
+                error instanceof Error ? error.message : 'Failed to delete integration',
+                'INTEGRATION_DELETE_FAILED',
+                500
+            ));
         }
-    },
+    }
 
     /**
      * Get integration stats
      */
-    async getStats(): Promise<{
+    async getStats(): Promise<Result<{
         total: number;
         enabled: number;
         connected: number;
         byCategory: Record<string, number>;
-    }> {
-        const integrations = await this.getAll();
+    }, AppError>> {
+        const integrationsResult = await this.getAll();
+        if (!integrationsResult.success) {
+            return integrationsResult;
+        }
         
+        const integrations = integrationsResult.data;
         const byCategory: Record<string, number> = {};
         integrations.forEach(i => {
             byCategory[i.category] = (byCategory[i.category] || 0) + 1;
         });
         
-        return {
+        return Ok({
             total: integrations.length,
             enabled: integrations.filter(i => i.enabled).length,
             connected: integrations.filter(i => i.status === 'connected').length,
             byCategory
-        };
+        });
     }
-};
+}
 
-export default integrationConfigService;
+export const integrationConfigService = new IntegrationConfigService();

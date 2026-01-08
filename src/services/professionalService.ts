@@ -1,6 +1,9 @@
-import pb from '../lib/pocketbase';
+import { pocketBaseClient } from '../lib/pocketbase';
+import { createTypedCollection } from '../lib/pocketbase-types';
 import { isMockEnv } from '../utils/mockData';
 import { ListResult } from 'pocketbase';
+import { Result, Ok, Err, Option, Some, None } from '../lib/types';
+import { AppError, NotFoundError } from './errorHandler';
 
 export interface ServiceOffering {
   id: string;
@@ -169,11 +172,28 @@ export const professionalService = {
       if (category) {
         filter = `category = "${category}"`;
       }
-      const records = await pb.collection('services').getList<ServiceOffering>(1, 50, {
+      const pb = pocketBaseClient.getRawClient();
+      const servicesCollection = createTypedCollection<ServiceOffering>(pb, 'services');
+      const result = await servicesCollection.getList(1, 50, {
         sort: '-created',
         filter,
       });
-      return records;
+      if (result.success) {
+        return {
+          page: result.data.page,
+          perPage: result.data.perPage,
+          totalItems: result.data.totalItems,
+          totalPages: result.data.totalPages,
+          items: result.data.items
+        };
+      }
+      return {
+        page: 1,
+        perPage: 50,
+        totalItems: 0,
+        totalPages: 0,
+        items: []
+      };
     } catch (error) {
       console.error('Error fetching services:', error);
       
@@ -187,16 +207,23 @@ export const professionalService = {
     }
   },
 
-  async getServiceById(id: string): Promise<ServiceOffering | null> {
+  async getServiceById(id: string): Promise<Option<ServiceOffering>> {
     if (isMockEnv()) {
-      return MOCK_SERVICES.find(s => s.id === id) || null;
+      const service = MOCK_SERVICES.find(s => s.id === id);
+      return service ? Some(service) : None();
     }
 
     try {
-      return await pb.collection('services').getOne<ServiceOffering>(id);
+      const pb = pocketBaseClient.getRawClient();
+      const servicesCollection = createTypedCollection<ServiceOffering>(pb, 'services');
+      const result = await servicesCollection.getOne(id);
+      if (result.success) {
+        return Some(result.data);
+      }
+      return None();
     } catch (error) {
       console.error('Error fetching service:', error);
-      return null;
+      return None();
     }
   },
 
@@ -211,11 +238,16 @@ export const professionalService = {
     }
 
     try {
-      const records = await pb.collection('services').getFullList<ServiceOffering>({
+      const pb = pocketBaseClient.getRawClient();
+      const servicesCollection = createTypedCollection<ServiceOffering>(pb, 'services');
+      const result = await servicesCollection.getFullList({
         filter: `title ~ "${query}" || description ~ "${query}" || provider_name ~ "${query}"`,
         sort: '-rating'
       });
-      return records;
+      if (result.success) {
+        return result.data;
+      }
+      return [];
     } catch (error) {
       console.error('Error searching services:', error);
       return [];
@@ -228,19 +260,24 @@ export const professionalService = {
     }
 
     try {
-      const records = await pb.collection('services').getFullList<ServiceOffering>({
+      const pb = pocketBaseClient.getRawClient();
+      const servicesCollection = createTypedCollection<ServiceOffering>(pb, 'services');
+      const result = await servicesCollection.getFullList({
         filter: 'rating >= 4.5',
         sort: '-rating,-reviews_count',
-        limit: 10
+        requestKey: null
       });
-      return records;
+      if (result.success) {
+        return result.data.slice(0, 10);
+      }
+      return [];
     } catch (error) {
       console.error('Error fetching featured services:', error);
       return [];
     }
   },
 
-  async createService(data: Partial<ServiceOffering>): Promise<ServiceOffering | null> {
+  async createService(data: Partial<ServiceOffering>): Promise<Result<ServiceOffering, AppError>> {
     if (isMockEnv()) {
       const newService: ServiceOffering = {
         id: `svc-${Date.now()}`,
@@ -259,18 +296,30 @@ export const professionalService = {
         created: new Date().toISOString()
       };
       MOCK_SERVICES.push(newService);
-      return newService;
+      return Ok(newService);
     }
 
     try {
-      return await pb.collection('services').create<ServiceOffering>(data);
+      const pb = pocketBaseClient.getRawClient();
+      const servicesCollection = createTypedCollection<ServiceOffering>(pb, 'services');
+      const result = await servicesCollection.create(data as Partial<ServiceOffering>);
+      if (result.success) {
+        return Ok(result.data);
+      }
+      return result;
     } catch (error) {
-      console.error('Error creating service:', error);
-      return null;
+      if (error instanceof AppError) {
+        return Err(error);
+      }
+      return Err(new AppError(
+        error instanceof Error ? error.message : 'Error creating service',
+        'SERVICE_CREATE_FAILED',
+        500
+      ));
     }
   },
 
-  async updateService(id: string, data: Partial<ServiceOffering>): Promise<ServiceOffering | null> {
+  async updateService(id: string, data: Partial<ServiceOffering>): Promise<Result<ServiceOffering, AppError>> {
     if (isMockEnv()) {
       const service = MOCK_SERVICES.find(s => s.id === id);
       if (service) {
@@ -297,7 +346,12 @@ export const professionalService = {
     }
 
     try {
-      await pb.collection('services').delete(id);
+      const pb = pocketBaseClient.getRawClient();
+      const servicesCollection = createTypedCollection<ServiceOffering>(pb, 'services');
+      const result = await servicesCollection.delete(id);
+      if (!result.success) {
+        throw result.error;
+      }
       return true;
     } catch (error) {
       console.error('Error deleting service:', error);
@@ -312,9 +366,15 @@ export const professionalService = {
     }
 
     try {
-      return await pb.collection('service_categories').getFullList<ServiceCategory>({
+      const pb = pocketBaseClient.getRawClient();
+      const categoriesCollection = createTypedCollection<ServiceCategory>(pb, 'service_categories');
+      const result = await categoriesCollection.getFullList({
         sort: 'name'
       });
+      if (result.success) {
+        return result.data;
+      }
+      return MOCK_CATEGORIES;
     } catch (error) {
       console.error('Error fetching categories:', error);
       return MOCK_CATEGORIES; // Fallback to mock
@@ -328,17 +388,23 @@ export const professionalService = {
     }
 
     try {
-      return await pb.collection('service_reviews').getFullList<ServiceReview>({
+      const pb = pocketBaseClient.getRawClient();
+      const reviewsCollection = createTypedCollection<ServiceReview>(pb, 'service_reviews');
+      const result = await reviewsCollection.getFullList({
         filter: `service_id = "${serviceId}"`,
         sort: '-created'
       });
+      if (result.success) {
+        return result.data;
+      }
+      return [];
     } catch (error) {
       console.error('Error fetching reviews:', error);
       return [];
     }
   },
 
-  async addReview(data: Partial<ServiceReview>): Promise<ServiceReview | null> {
+  async addReview(data: Partial<ServiceReview>): Promise<Result<ServiceReview, AppError>> {
     if (isMockEnv()) {
       const newReview: ServiceReview = {
         id: `rev-${Date.now()}`,
@@ -359,14 +425,26 @@ export const professionalService = {
         service.rating = serviceReviews.reduce((sum, r) => sum + r.rating, 0) / serviceReviews.length;
       }
       
-      return newReview;
+      return Ok(newReview);
     }
 
     try {
-      return await pb.collection('service_reviews').create<ServiceReview>(data);
+      const pb = pocketBaseClient.getRawClient();
+      const reviewsCollection = createTypedCollection<ServiceReview>(pb, 'service_reviews');
+      const result = await reviewsCollection.create(data as Partial<ServiceReview>);
+      if (result.success) {
+        return Ok(result.data);
+      }
+      return result;
     } catch (error) {
-      console.error('Error adding review:', error);
-      return null;
+      if (error instanceof AppError) {
+        return Err(error);
+      }
+      return Err(new AppError(
+        error instanceof Error ? error.message : 'Error adding review',
+        'REVIEW_CREATE_FAILED',
+        500
+      ));
     }
   },
 
@@ -377,18 +455,24 @@ export const professionalService = {
     }
 
     try {
-      return await pb.collection('service_bookings').getFullList<ServiceBooking>({
+      const pb = pocketBaseClient.getRawClient();
+      const bookingsCollection = createTypedCollection<ServiceBooking>(pb, 'service_bookings');
+      const result = await bookingsCollection.getFullList({
         filter: `user_id = "${userId}"`,
         sort: '-created',
-        expand: 'service_id'
+        requestKey: null
       });
+      if (result.success) {
+        return result.data;
+      }
+      return [];
     } catch (error) {
       console.error('Error fetching bookings:', error);
       return [];
     }
   },
 
-  async createBooking(data: Partial<ServiceBooking>): Promise<ServiceBooking | null> {
+  async createBooking(data: Partial<ServiceBooking>): Promise<Result<ServiceBooking, AppError>> {
     if (isMockEnv()) {
       const newBooking: ServiceBooking = {
         id: `book-${Date.now()}`,
@@ -404,34 +488,59 @@ export const professionalService = {
         created: new Date().toISOString()
       };
       MOCK_BOOKINGS.push(newBooking);
-      return newBooking;
+      return Ok(newBooking);
     }
 
     try {
-      return await pb.collection('service_bookings').create<ServiceBooking>({
+      const pb = pocketBaseClient.getRawClient();
+      const bookingsCollection = createTypedCollection<ServiceBooking>(pb, 'service_bookings');
+      const result = await bookingsCollection.create({
         ...data,
         status: 'Pending'
-      });
+      } as Partial<ServiceBooking>);
+      if (result.success) {
+        return Ok(result.data);
+      }
+      return result;
     } catch (error) {
-      console.error('Error creating booking:', error);
-      return null;
+      if (error instanceof AppError) {
+        return Err(error);
+      }
+      return Err(new AppError(
+        error instanceof Error ? error.message : 'Error creating booking',
+        'BOOKING_CREATE_FAILED',
+        500
+      ));
     }
   },
 
-  async updateBookingStatus(id: string, status: ServiceBooking['status']): Promise<ServiceBooking | null> {
+  async updateBookingStatus(id: string, status: ServiceBooking['status']): Promise<Result<ServiceBooking, AppError>> {
     if (isMockEnv()) {
       const booking = MOCK_BOOKINGS.find(b => b.id === id);
       if (booking) {
         booking.status = status;
+        return Ok(booking);
       }
-      return booking || null;
+      return Err(new NotFoundError('Booking'));
     }
 
     try {
-      return await pb.collection('service_bookings').update<ServiceBooking>(id, { status });
+      const pb = pocketBaseClient.getRawClient();
+      const bookingsCollection = createTypedCollection<ServiceBooking>(pb, 'service_bookings');
+      const result = await bookingsCollection.update(id, { status } as Partial<ServiceBooking>);
+      if (result.success) {
+        return Ok(result.data);
+      }
+      return result;
     } catch (error) {
-      console.error('Error updating booking status:', error);
-      return null;
+      if (error instanceof AppError) {
+        return Err(error);
+      }
+      return Err(new AppError(
+        error instanceof Error ? error.message : 'Error updating booking status',
+        'BOOKING_UPDATE_FAILED',
+        500
+      ));
     }
   },
 
@@ -445,7 +554,12 @@ export const professionalService = {
     }
 
     try {
-      await pb.collection('service_bookings').update(id, { status: 'Cancelled' });
+      const pb = pocketBaseClient.getRawClient();
+      const bookingsCollection = createTypedCollection<ServiceBooking>(pb, 'service_bookings');
+      const result = await bookingsCollection.update(id, { status: 'Cancelled' } as Partial<ServiceBooking>);
+      if (!result.success) {
+        return false;
+      }
       return true;
     } catch (error) {
       console.error('Error cancelling booking:', error);

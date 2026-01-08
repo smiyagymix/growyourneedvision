@@ -1,7 +1,12 @@
-import pb from '../lib/pocketbase';
+import { pocketBaseClient } from '../lib/pocketbase';
+import { createTypedCollection } from '../lib/pocketbase-types';
 import { auditLog } from './auditLogger';
 import { isMockEnv } from '../utils/mockData';
 import { RecordModel } from 'pocketbase';
+import env from '../config/environment';
+import { Result, Ok, Err, Option, Some, None } from '../lib/types';
+import { AppError, ValidationError } from './errorHandler';
+import { WebhookPayload, WebhookEventData } from '../types/webhook';
 
 export interface Webhook extends RecordModel {
     id: string;
@@ -35,7 +40,7 @@ export interface WebhookDelivery extends RecordModel {
     id: string;
     webhook: string;
     event: string;
-    payload: Record<string, unknown>;
+    payload: WebhookPayload;
     response_code?: number;
     response_body?: string;
     success: boolean;
@@ -69,7 +74,7 @@ const MOCK_WEBHOOKS: Webhook[] = [
         created: new Date().toISOString(),
         updated: new Date().toISOString(),
         name: 'Slack Notifications',
-        url: 'https://hooks.slack.com/services/xxx',
+        url: env.get('slackWebhookUrl') || 'https://hooks.slack.com/services/xxx',
         events: ['user.created', 'payment.completed'],
         status: 'active',
         secret_key: 'whsec_mock123',
@@ -118,6 +123,9 @@ const MOCK_DELIVERIES: WebhookDelivery[] = [
 class WebhookService {
     private collection = 'webhooks';
     private deliveriesCollection = 'webhook_deliveries';
+    private pb = pocketBaseClient.getRawClient();
+    private webhookService = createTypedCollection<Webhook>(this.pb, this.collection);
+    private deliveryService = createTypedCollection<WebhookDelivery>(this.pb, this.deliveriesCollection);
 
     /**
      * Generate a secure webhook secret
@@ -134,46 +142,57 @@ class WebhookService {
     /**
      * Get all webhooks
      */
-    async getAll(): Promise<Webhook[]> {
+    async getAll(): Promise<Result<Webhook[], AppError>> {
         if (isMockEnv()) {
-            return MOCK_WEBHOOKS;
+            return Ok(MOCK_WEBHOOKS);
         }
 
         try {
-            const records = await pb.collection(this.collection).getFullList({
+            const result = await this.webhookService.getFullList({
                 sort: '-created',
                 requestKey: null
             });
-            return records as unknown as Webhook[];
+            if (result.success) {
+                return Ok(result.data);
+            }
+            return result;
         } catch (error) {
-            console.error('Failed to fetch webhooks:', error);
-            return [];
+            if (error instanceof AppError) {
+                return Err(error);
+            }
+            return Err(new AppError(
+                error instanceof Error ? error.message : 'Failed to fetch webhooks',
+                'WEBHOOKS_FETCH_FAILED',
+                500
+            ));
         }
     }
 
     /**
      * Get a single webhook by ID
      */
-    async getById(id: string): Promise<Webhook | null> {
+    async getById(id: string): Promise<Option<Webhook>> {
         if (isMockEnv()) {
-            return MOCK_WEBHOOKS.find(w => w.id === id) || null;
+            const webhook = MOCK_WEBHOOKS.find(w => w.id === id);
+            return webhook ? Some(webhook) : None();
         }
 
         try {
-            const record = await pb.collection(this.collection).getOne(id, {
-                requestKey: null
-            });
-            return record as unknown as Webhook;
+            const result = await this.webhookService.getOne(id);
+            if (result.success) {
+                return Some(result.data);
+            }
+            return None();
         } catch (error) {
             console.error(`Failed to fetch webhook ${id}:`, error);
-            return null;
+            return None();
         }
     }
 
     /**
      * Create a new webhook
      */
-    async create(data: CreateWebhookData): Promise<Webhook | null> {
+    async create(data: CreateWebhookData): Promise<Result<Webhook, AppError>> {
         const secret = data.secret_key || this.generateSecret();
 
         if (isMockEnv()) {
@@ -194,33 +213,43 @@ class WebhookService {
                 timeout_ms: data.timeout_ms || 5000
             };
             MOCK_WEBHOOKS.unshift(newWebhook);
-            return newWebhook;
+            return Ok(newWebhook);
         }
 
         try {
-            const record = await pb.collection(this.collection).create({
+            const result = await this.webhookService.create({
                 ...data,
                 secret_key: secret,
                 success_rate: 100,
                 status: data.status || 'active'
-            });
-            await auditLog.log('webhook.create', {
-                webhook_id: record.id,
-                name: data.name,
-                url: data.url,
-                events: data.events
-            }, 'info');
-            return record as unknown as Webhook;
+            } as Partial<Webhook>);
+
+            if (result.success) {
+                await auditLog.log('webhook.create', {
+                    webhook_id: result.data.id,
+                    name: data.name,
+                    url: data.url,
+                    events: data.events
+                }, 'info');
+                return Ok(result.data);
+            }
+            return result;
         } catch (error) {
-            console.error('Failed to create webhook:', error);
-            return null;
+            if (error instanceof AppError) {
+                return Err(error);
+            }
+            return Err(new AppError(
+                error instanceof Error ? error.message : 'Failed to create webhook',
+                'WEBHOOK_CREATE_FAILED',
+                500
+            ));
         }
     }
 
     /**
      * Update a webhook
      */
-    async update(id: string, data: Partial<CreateWebhookData>): Promise<Webhook | null> {
+    async update(id: string, data: Partial<CreateWebhookData>): Promise<Result<Webhook, AppError>> {
         if (isMockEnv()) {
             const idx = MOCK_WEBHOOKS.findIndex(w => w.id === id);
             if (idx >= 0) {
@@ -229,63 +258,82 @@ class WebhookService {
                     ...data,
                     updated: new Date().toISOString()
                 };
-                return MOCK_WEBHOOKS[idx];
+                return Ok(MOCK_WEBHOOKS[idx]);
             }
-            return null;
+            return Err(new AppError('Webhook not found', 'NOT_FOUND', 404));
         }
 
         try {
-            const record = await pb.collection(this.collection).update(id, data);
-            await auditLog.log('webhook.update', { webhook_id: id, changes: Object.keys(data) }, 'info');
-            return record as unknown as Webhook;
+            const result = await this.webhookService.update(id, data as Partial<Webhook>);
+            if (result.success) {
+                await auditLog.log('webhook.update', { webhook_id: id, changes: Object.keys(data) }, 'info');
+                return Ok(result.data);
+            }
+            return result;
         } catch (error) {
-            console.error(`Failed to update webhook ${id}:`, error);
-            return null;
+            if (error instanceof AppError) {
+                return Err(error);
+            }
+            return Err(new AppError(
+                error instanceof Error ? error.message : 'Failed to update webhook',
+                'WEBHOOK_UPDATE_FAILED',
+                500
+            ));
         }
     }
 
     /**
      * Delete a webhook
      */
-    async delete(id: string): Promise<boolean> {
+    async delete(id: string): Promise<Result<boolean, AppError>> {
         if (isMockEnv()) {
             const idx = MOCK_WEBHOOKS.findIndex(w => w.id === id);
             if (idx >= 0) {
                 MOCK_WEBHOOKS.splice(idx, 1);
-                return true;
+                return Ok(true);
             }
-            return false;
+            return Err(new AppError('Webhook not found', 'NOT_FOUND', 404));
         }
 
         try {
-            await pb.collection(this.collection).delete(id);
-            await auditLog.log('webhook.delete', { webhook_id: id }, 'warning');
-            return true;
+            const result = await this.webhookService.delete(id);
+            if (result.success) {
+                await auditLog.log('webhook.delete', { webhook_id: id }, 'warning');
+                return Ok(true);
+            }
+            return result;
         } catch (error) {
-            console.error(`Failed to delete webhook ${id}:`, error);
-            return false;
+            if (error instanceof AppError) {
+                return Err(error);
+            }
+            return Err(new AppError(
+                error instanceof Error ? error.message : 'Failed to delete webhook',
+                'WEBHOOK_DELETE_FAILED',
+                500
+            ));
         }
     }
 
     /**
      * Test a webhook by sending a test payload
      */
-    async test(id: string): Promise<{ success: boolean; responseCode?: number; error?: string }> {
-        const webhook = await this.getById(id);
-        if (!webhook) {
-            return { success: false, error: 'Webhook not found' };
+    async test(id: string): Promise<Result<{ responseCode: number }, AppError>> {
+        const webhookOption = await this.getById(id);
+        if (!webhookOption.some) {
+            return Err(new AppError('Webhook not found', 'NOT_FOUND', 404));
         }
+        const webhook = webhookOption.value;
 
         if (isMockEnv()) {
             await auditLog.log('webhook.test', { webhook_id: id, url: webhook.url }, 'info');
-            return { success: true, responseCode: 200 };
+            return Ok({ responseCode: 200 });
         }
 
         try {
-            const testPayload = {
+            const testPayload: WebhookPayload = {
                 event: 'webhook.test',
                 timestamp: new Date().toISOString(),
-                data: { message: 'This is a test webhook delivery' }
+                data: { message: 'This is a test webhook delivery', type: 'test' }
             };
 
             const response = await fetch(webhook.url, {
@@ -306,25 +354,32 @@ class WebhookService {
                 success: response.ok
             }, 'info');
 
-            return {
-                success: response.ok,
-                responseCode: response.status
-            };
+            if (response.ok) {
+                return Ok({ responseCode: response.status });
+            }
+            return Err(new AppError(
+                `Webhook test failed with status ${response.status}`,
+                'WEBHOOK_TEST_FAILED',
+                response.status
+            ));
         } catch (error) {
-            console.error(`Failed to test webhook ${id}:`, error);
-            return {
-                success: false,
-                error: error instanceof Error ? error.message : 'Unknown error'
-            };
+            if (error instanceof AppError) {
+                return Err(error);
+            }
+            return Err(new AppError(
+                error instanceof Error ? error.message : 'Unknown error',
+                'WEBHOOK_TEST_FAILED',
+                500
+            ));
         }
     }
 
     /**
      * Update webhook status
      */
-    async updateStatus(id: string, status: Webhook['status']): Promise<Webhook | null> {
+    async updateStatus(id: string, status: Webhook['status']): Promise<Result<Webhook, AppError>> {
         const result = await this.update(id, { status });
-        if (result) {
+        if (result.success) {
             await auditLog.log('webhook.status_change', { webhook_id: id, status }, 'info');
         }
         return result;
@@ -333,40 +388,55 @@ class WebhookService {
     /**
      * Regenerate webhook secret
      */
-    async regenerateSecret(id: string): Promise<string | null> {
+    async regenerateSecret(id: string): Promise<Result<string, AppError>> {
         const newSecret = this.generateSecret();
 
         if (isMockEnv()) {
             const idx = MOCK_WEBHOOKS.findIndex(w => w.id === id);
             if (idx >= 0) {
                 MOCK_WEBHOOKS[idx].secret_key = newSecret;
-                return newSecret;
+                return Ok(newSecret);
             }
-            return null;
+            return Err(new AppError('Webhook not found', 'NOT_FOUND', 404));
         }
 
         try {
-            await pb.collection(this.collection).update(id, { secret_key: newSecret });
-            await auditLog.log('webhook.secret_regenerated', { webhook_id: id }, 'warning');
-            return newSecret;
+            const result = await this.webhookService.update(id, { secret_key: newSecret } as Partial<Webhook>);
+            if (result.success) {
+                await auditLog.log('webhook.secret_regenerated', { webhook_id: id }, 'warning');
+                return Ok(newSecret);
+            }
+            return Err(result.error);
         } catch (error) {
-            console.error(`Failed to regenerate secret for webhook ${id}:`, error);
-            return null;
+            if (error instanceof AppError) {
+                return Err(error);
+            }
+            return Err(new AppError(
+                error instanceof Error ? error.message : 'Failed to regenerate secret',
+                'SECRET_REGENERATE_FAILED',
+                500
+            ));
         }
     }
 
     /**
      * Trigger webhook for an event
      */
-    async trigger(event: string, payload: Record<string, unknown>): Promise<void> {
-        const webhooks = await this.getAll();
-        const activeWebhooks = webhooks.filter(w =>
+    async trigger(event: string, payload: WebhookPayload): Promise<Result<void, AppError>> {
+        const webhooksResult = await this.getAll();
+        if (!webhooksResult.success) {
+            return webhooksResult;
+        }
+
+        const activeWebhooks = webhooksResult.data.filter(w =>
             w.status === 'active' && w.events.includes(event)
         );
 
         for (const webhook of activeWebhooks) {
             this.deliver(webhook, event, payload);
         }
+
+        return Ok(undefined);
     }
 
     /**
@@ -375,17 +445,18 @@ class WebhookService {
     private async deliver(
         webhook: Webhook,
         event: string,
-        payload: Record<string, unknown>,
+        payload: WebhookPayload,
         attempt = 1
     ): Promise<void> {
         const startTime = Date.now();
         const maxRetries = webhook.retry_count || 3;
 
         try {
-            const body = {
+            const body: WebhookPayload = {
                 event,
                 timestamp: new Date().toISOString(),
-                data: payload
+                data: payload.data,
+                metadata: payload.metadata
             };
 
             const response = await fetch(webhook.url, {
@@ -405,7 +476,7 @@ class WebhookService {
             const responseBody = await response.text();
 
             // Log delivery
-            await this.logDelivery({
+            const logResult = await this.logDelivery({
                 webhook: webhook.id,
                 event,
                 payload,
@@ -415,6 +486,9 @@ class WebhookService {
                 duration_ms: duration,
                 attempt
             });
+            if (!logResult.success) {
+                console.error('Failed to log delivery:', logResult.error);
+            }
 
             await this.recordTrigger(webhook.id, response.ok);
 
@@ -427,7 +501,7 @@ class WebhookService {
             const duration = Date.now() - startTime;
 
             // Log failed delivery
-            await this.logDelivery({
+            const logResult = await this.logDelivery({
                 webhook: webhook.id,
                 event,
                 payload,
@@ -436,6 +510,9 @@ class WebhookService {
                 attempt,
                 response_body: error instanceof Error ? error.message : 'Unknown error'
             });
+            if (!logResult.success) {
+                console.error('Failed to log delivery:', logResult.error);
+            }
 
             await this.recordTrigger(webhook.id, false);
 
@@ -450,7 +527,7 @@ class WebhookService {
     /**
      * Log a webhook delivery
      */
-    private async logDelivery(data: Omit<WebhookDelivery, 'id' | 'collectionId' | 'collectionName' | 'created' | 'updated'>): Promise<void> {
+    private async logDelivery(data: Omit<WebhookDelivery, 'id' | 'collectionId' | 'collectionName' | 'created' | 'updated'>): Promise<Result<void, AppError>> {
         if (isMockEnv()) {
             const delivery: WebhookDelivery = {
                 webhook: data.webhook,
@@ -468,13 +545,24 @@ class WebhookService {
                 updated: new Date().toISOString()
             };
             MOCK_DELIVERIES.unshift(delivery);
-            return;
+            return Ok(undefined);
         }
 
         try {
-            await pb.collection(this.deliveriesCollection).create(data);
+            const result = await this.deliveryService.create(data as Partial<WebhookDelivery>);
+            if (result.success) {
+                return Ok(undefined);
+            }
+            return Err(result.error);
         } catch (error) {
-            console.error('Failed to log webhook delivery:', error);
+            if (error instanceof AppError) {
+                return Err(error);
+            }
+            return Err(new AppError(
+                error instanceof Error ? error.message : 'Failed to log webhook delivery',
+                'DELIVERY_LOG_FAILED',
+                500
+            ));
         }
     }
 

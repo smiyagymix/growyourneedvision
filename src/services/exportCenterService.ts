@@ -12,6 +12,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { captureException, measurePerformance, addBreadcrumb } from '../lib/sentry';
+import { ExportRow, ExportMetadata } from '../types/export';
 
 // ==================== TYPES ====================
 
@@ -68,8 +69,8 @@ export interface ExportJob extends RecordModel {
 
 export interface ExportData {
     headers: string[];
-    rows: any[][];
-    metadata?: Record<string, any>;
+    rows: ExportRow[];
+    metadata?: ExportMetadata;
 }
 
 // ==================== MOCK DATA ====================
@@ -429,7 +430,7 @@ class ExportCenterService {
         }
 
         // Fetch data based on type
-        let records: any[] = [];
+        let records: RecordModel[] = [];
         switch (dataType) {
             case 'tenants':
                 records = await pb.collection('tenants').getFullList({ filter: filterQuery, requestKey: null });

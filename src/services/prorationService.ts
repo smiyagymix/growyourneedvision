@@ -6,8 +6,8 @@
 import env from '../config/environment';
 import { isMockEnv } from '../utils/mockData';
 
-const API_URL = env.get('serverUrl') || 'http://localhost:3001';
-const API_KEY = env.get('apiKey') || 'your-api-key-here';
+const API_URL = env.get('serverUrl');
+const API_KEY = env.get('serviceApiKey');
 
 // Mock proration data for testing
 const MOCK_PRORATION = {

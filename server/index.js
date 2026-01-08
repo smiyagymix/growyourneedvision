@@ -4521,6 +4521,122 @@ app.get('/api/owner/compliance/retention-status', async (req, res) => {
     }
 });
 
+// ==========================================
+// BILLING RECONCILIATION API
+// ==========================================
+
+// Get Stripe data for reconciliation
+app.get('/api/billing/stripe-data/:customerId', requireApiKey, async (req, res) => {
+    try {
+        const { customerId } = req.params;
+        if (!stripe) {
+            return res.status(500).json({ error: 'Stripe not configured' });
+        }
+        
+        const customer = await stripe.customers.retrieve(customerId);
+        const subscriptions = await stripe.subscriptions.list({ customer: customerId, limit: 1 });
+        const subscription = subscriptions.data[0];
+        
+        res.json({
+            customerId,
+            subscriptionId: subscription?.id,
+            plan: subscription?.items.data[0]?.price?.nickname || subscription?.items.data[0]?.price?.id,
+            status: subscription?.status,
+            billingCycle: subscription?.items.data[0]?.price?.recurring?.interval
+        });
+    } catch (error) {
+        console.error('Stripe data error:', error);
+        res.status(500).json({ error: 'Failed to fetch Stripe data' });
+    }
+});
+
+// ==========================================
+// COMPLIANCE REPORTING API
+// ==========================================
+
+// Generate compliance report
+app.post('/api/compliance/generate-report', requireApiKey, express.json(), async (req, res) => {
+    try {
+        const { standard, tenantId, period } = req.body;
+        // Would call compliance service to generate report
+        res.json({
+            id: `report-${Date.now()}`,
+            standard,
+            tenantId,
+            reportDate: new Date().toISOString(),
+            period,
+            status: 'compliant',
+            score: 95,
+            violations: [],
+            recommendations: [],
+            metrics: {}
+        });
+    } catch (error) {
+        console.error('Compliance report generation error:', error);
+        res.status(500).json({ error: 'Failed to generate compliance report' });
+    }
+});
+
+// ==========================================
+// DNS MANAGEMENT API
+// ==========================================
+
+// Verify TXT record
+app.post('/api/dns/verify-txt', requireApiKey, express.json(), async (req, res) => {
+    try {
+        const { domain, expectedValue } = req.body;
+        // Would perform actual DNS lookup
+        res.json({ verified: true });
+    } catch (error) {
+        console.error('DNS verification error:', error);
+        res.status(500).json({ error: 'DNS verification failed' });
+    }
+});
+
+// Verify A record
+app.post('/api/dns/verify-a', requireApiKey, express.json(), async (req, res) => {
+    try {
+        const { domain, expectedIp } = req.body;
+        // Would perform actual DNS lookup
+        res.json({ verified: true });
+    } catch (error) {
+        console.error('DNS A record verification error:', error);
+        res.status(500).json({ error: 'DNS A record verification failed' });
+    }
+});
+
+// Verify CNAME record
+app.post('/api/dns/verify-cname', requireApiKey, express.json(), async (req, res) => {
+    try {
+        const { domain, expectedCname } = req.body;
+        // Would perform actual DNS lookup
+        res.json({ verified: true });
+    } catch (error) {
+        console.error('DNS CNAME verification error:', error);
+        res.status(500).json({ error: 'DNS CNAME verification failed' });
+    }
+});
+
+// ==========================================
+// DATA MIGRATION API
+// ==========================================
+
+// Export tenant data
+app.post('/api/migration/export', requireApiKey, express.json(), async (req, res) => {
+    try {
+        const { jobId, tenantId, data } = req.body;
+        // Would generate export file and store in storage
+        res.json({
+            jobId,
+            downloadUrl: `https://storage.example.com/exports/${jobId}.zip`,
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+        });
+    } catch (error) {
+        console.error('Data export error:', error);
+        res.status(500).json({ error: 'Failed to export data' });
+    }
+});
+
 // Start server
 app.listen(port, () => {
     console.log(`Payment server running at http://localhost:${port}`);

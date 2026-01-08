@@ -1,26 +1,30 @@
 import env from '../config/environment';
-import pb from '../lib/pocketbase';
+import { pocketBaseClient } from '../lib/pocketbase';
 import { ownerService } from './ownerService';
 import { isMockEnv } from '../utils/mockData';
+import { Result, Ok, Err } from '../lib/types';
+import { AppError } from './errorHandler';
+import { AlertMetadata, ServiceHealthMetadata } from '../types/monitoring';
 
 export interface AlertData {
     title: string;
     message: string;
     severity: 'info' | 'warning' | 'critical';
-    metadata?: Record<string, any>;
+    metadata?: AlertMetadata;
     service?: string;
 }
 
 interface ServiceHealthCheck {
     name: string;
     endpoint?: string;
-    healthCheck: () => Promise<{ status: 'operational' | 'degraded' | 'down'; latency: number; metadata?: Record<string, string | number | boolean> }>;
+    healthCheck: () => Promise<{ status: 'operational' | 'degraded' | 'down'; latency: number; metadata?: ServiceHealthMetadata }>;
 }
 
 class MonitoringService {
     private slackWebhookUrl: string | boolean | undefined;
     private checkInterval: NodeJS.Timeout | null = null;
     private isRunning = false;
+    private pb = pocketBaseClient.getRawClient();
 
     // Define services to monitor
     private services: ServiceHealthCheck[] = [
@@ -98,8 +102,9 @@ class MonitoringService {
             healthCheck: async () => {
                 const start = Date.now();
                 try {
-                    const aiServiceUrl = import.meta.env.VITE_AI_SERVICE_URL || 'http://localhost:8000';
-                    const response = await fetch(`${aiServiceUrl}/health`, { 
+                    const aiServiceUrl = env.get('aiServiceUrl');
+                    const healthPath = env.get('aiServiceHealthPath');
+                    const response = await fetch(`${aiServiceUrl}${healthPath}`, { 
                         method: 'GET',
                         signal: AbortSignal.timeout(5000)
                     });
@@ -135,12 +140,12 @@ class MonitoringService {
     /**
      * Send a notification to Slack
      */
-    async sendAlert(data: AlertData): Promise<boolean> {
+    async sendAlert(data: AlertData): Promise<Result<void, AppError>> {
         if (!this.slackWebhookUrl) {
             if (import.meta.env.DEV) {
                 console.warn('[MonitoringService] Slack Webhook URL not configured. Skipping alert:', data);
             }
-            return false;
+            return Err(new AppError('Slack webhook URL not configured', 'CONFIG_ERROR', 500));
         }
 
         try {
@@ -172,30 +177,45 @@ class MonitoringService {
                 ]  
             };
 
-            const response = await fetch(this.slackWebhookUrl as string, {
+            const webhookUrl = typeof this.slackWebhookUrl === 'string' ? this.slackWebhookUrl : '';
+            const response = await fetch(webhookUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
 
-            return response.ok;
+            if (response.ok) {
+                return Ok(undefined);
+            }
+            return Err(new AppError(
+                `Failed to send alert: ${response.statusText}`,
+                'ALERT_SEND_FAILED',
+                response.status
+            ));
         } catch (error) {
-            console.error('[MonitoringService] Failed to send Slack alert:', error);
-            return false;
+            if (error instanceof AppError) {
+                return Err(error);
+            }
+            return Err(new AppError(
+                error instanceof Error ? error.message : 'Failed to send Slack alert',
+                'ALERT_SEND_FAILED',
+                500
+            ));
         }
     }
 
     /**
      * Notify critical audit event
      */
-    async notifyCriticalAudit(action: string, metadata: any): Promise<void> {
-        await this.sendAlert({
+    async notifyCriticalAudit(action: string, metadata: AlertMetadata): Promise<Result<void, AppError>> {
+        const result = await this.sendAlert({
             title: `Critical Audit Event: ${action}`,
             message: `A critical action was performed on the system.`,
             severity: 'critical',
             metadata,
             service: 'AuditLogger'
         });
+        return result;
     }
 
     /**

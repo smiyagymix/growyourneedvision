@@ -2,6 +2,7 @@ import pb from '../lib/pocketbase';
 import { auditLog } from './auditLogger';
 import { isMockEnv } from '../utils/mockData';
 import { RecordModel } from 'pocketbase';
+import { ReportFilters } from '../types/reports';
 
 export interface ScheduledReport extends RecordModel {
     id: string;
@@ -16,7 +17,7 @@ export interface ScheduledReport extends RecordModel {
     last_run_status?: 'success' | 'failed' | 'partial';
     last_run_duration_ms?: number;
     error_count?: number;
-    filters?: Record<string, unknown>;
+    filters?: ReportFilters;
     description?: string;
     created: string;
     updated: string;
@@ -29,7 +30,7 @@ export interface CreateReportData {
     recipients: string[];
     format: ScheduledReport['format'];
     description?: string;
-    filters?: Record<string, unknown>;
+    filters?: ReportFilters;
 }
 
 export interface ReportExecutionResult {

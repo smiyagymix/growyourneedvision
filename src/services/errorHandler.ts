@@ -5,7 +5,12 @@ import * as Sentry from "@sentry/react";
  * Provides consistent error handling across the platform
  */
 
-export type ErrorDetails = Record<string, string | number | boolean | null | undefined | object>;
+/**
+ * Error details type - no null or undefined
+ */
+export interface ErrorDetails {
+    [key: string]: string | number | boolean | object | string[];
+}
 
 export class AppError extends Error {
     constructor(

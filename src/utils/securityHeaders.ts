@@ -6,6 +6,8 @@
  * can be validated/reported from the client side
  */
 
+import env from '../config/environment';
+
 /**
  * Content Security Policy directives
  */
@@ -33,8 +35,7 @@ export const CSP_DIRECTIVES = {
         'data:',
         'blob:',
         'https:',
-        'http://localhost:8090', // PocketBase
-        'http://127.0.0.1:8090',
+        env.get('pocketbaseUrl'), // PocketBase
     ],
     'media-src': [
         "'self'",
@@ -43,13 +44,18 @@ export const CSP_DIRECTIVES = {
     ],
     'connect-src': [
         "'self'",
-        'http://localhost:*',
-        'http://127.0.0.1:*',
-        'ws://localhost:*',
-        'ws://127.0.0.1:*',
+        env.get('pocketbaseUrl'),
+        env.get('aiServiceUrl'),
+        env.get('serverUrl'),
+        env.get('paymentServerUrl'),
+        env.get('frontendUrl'),
+        env.isDevelopment() ? 'http://localhost:*' : '',
+        env.isDevelopment() ? 'http://127.0.0.1:*' : '',
+        env.isDevelopment() ? 'ws://localhost:*' : '',
+        env.isDevelopment() ? 'ws://127.0.0.1:*' : '',
         'https://api.openai.com',
         'https://api.stripe.com',
-    ],
+    ].filter(Boolean),
     'frame-src': [
         "'self'",
         'https://js.stripe.com',
@@ -224,19 +230,22 @@ export function validateOrigin(origin: string, allowedOrigins: string[]): boolea
 export function getAllowedOrigins(): string[] {
     const origins = [window.location.origin];
     
-    // Add development origins
-    if (process.env.NODE_ENV === 'development') {
+    // Add configured origins from environment
+    origins.push(env.get('frontendUrl'), env.get('pocketbaseUrl'));
+    
+    // Add development origins if in development
+    if (env.isDevelopment()) {
         origins.push('http://localhost:3001', 'http://127.0.0.1:3001');
         origins.push('http://localhost:8090', 'http://127.0.0.1:8090');
     }
     
     // Add configured origins from env
-    const customOrigins = process.env.VITE_ALLOWED_ORIGINS;
+    const customOrigins = import.meta.env.VITE_ALLOWED_ORIGINS;
     if (customOrigins) {
         origins.push(...customOrigins.split(','));
     }
     
-    return origins;
+    return origins.filter(Boolean);
 }
 
 /**

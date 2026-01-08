@@ -1,7 +1,10 @@
-import pb from '../lib/pocketbase';
+import { pocketBaseClient } from '../lib/pocketbase';
+import { createTypedCollection } from '../lib/pocketbase-types';
 import { isMockEnv } from '../utils/mockData';
 import { RecordModel } from 'pocketbase';
 import { auditLog } from './auditLogger';
+import { Result, Ok, Err, Option, Some, None } from '../lib/types';
+import { AppError, NotFoundError } from './errorHandler';
 
 export interface Event extends RecordModel {
   title: string;
@@ -199,12 +202,23 @@ export const eventService = {
     }
 
     try {
-      return await pb.collection('events').getList<Event>(page, perPage, {
+      const pb = pocketBaseClient.getRawClient();
+      const eventsCollection = createTypedCollection<Event>(pb, 'events');
+      const result = await eventsCollection.getList(page, perPage, {
         sort: 'start_time',
         filter: options?.filter || '',
-        expand: 'organizer',
         requestKey: null
       });
+      if (result.success) {
+        return {
+          items: result.data.items,
+          page: result.data.page,
+          perPage: result.data.perPage,
+          totalItems: result.data.totalItems,
+          totalPages: result.data.totalPages
+        };
+      }
+      return { items: [], page, perPage, totalItems: 0, totalPages: 0 };
     } catch (error) {
       console.error('Error fetching events:', error);
       return { items: [], page, perPage, totalItems: 0, totalPages: 0 };
@@ -214,19 +228,25 @@ export const eventService = {
   /**
    * Get event by ID
    */
-  async getEvent(id: string): Promise<Event | null> {
+  async getEvent(id: string): Promise<Option<Event>> {
     if (isMockEnv()) {
-      return MOCK_EVENTS.find(e => e.id === id) || null;
+      const event = MOCK_EVENTS.find(e => e.id === id);
+      return event ? Some(event) : None();
     }
 
     try {
-      return await pb.collection('events').getOne<Event>(id, {
-        expand: 'organizer',
+      const pb = pocketBaseClient.getRawClient();
+      const eventsCollection = createTypedCollection<Event>(pb, 'events');
+      const result = await eventsCollection.getOne(id, {
         requestKey: null
       });
+      if (result.success) {
+        return Some(result.data);
+      }
+      return None();
     } catch (error) {
       console.error('Error fetching event:', error);
-      return null;
+      return None();
     }
   },
 
@@ -244,13 +264,17 @@ export const eventService = {
     }
 
     try {
-      const result = await pb.collection('events').getList<Event>(1, limit, {
+      const pb = pocketBaseClient.getRawClient();
+      const eventsCollection = createTypedCollection<Event>(pb, 'events');
+      const result = await eventsCollection.getList(1, limit, {
         filter: `start_time > "${now}" && status = "published"`,
         sort: 'start_time',
-        expand: 'organizer',
         requestKey: null
       });
-      return result.items;
+      if (result.success) {
+        return result.data.items;
+      }
+      return [];
     } catch (error) {
       console.error('Error fetching upcoming events:', error);
       return [];
@@ -260,7 +284,7 @@ export const eventService = {
   /**
    * Create event
    */
-  async createEvent(data: Partial<Event>): Promise<Event | null> {
+  async createEvent(data: Partial<Event>): Promise<Result<Event, AppError>> {
     if (isMockEnv()) {
       const newEvent: Event = {
         id: `evt-${Date.now()}`,
@@ -283,39 +307,62 @@ export const eventService = {
       };
       MOCK_EVENTS.push(newEvent);
       auditLog.log('event_created', { eventId: newEvent.id, title: newEvent.title }, 'info');
-      return newEvent;
+      return Ok(newEvent);
     }
 
     try {
-      const event = await pb.collection('events').create<Event>(data);
-      auditLog.log('event_created', { eventId: event.id, title: event.title }, 'info');
-      return event;
+      const pb = pocketBaseClient.getRawClient();
+      const eventsCollection = createTypedCollection<Event>(pb, 'events');
+      const result = await eventsCollection.create(data as Partial<Event>);
+      if (result.success) {
+        auditLog.log('event_created', { eventId: result.data.id, title: result.data.title }, 'info');
+        return Ok(result.data);
+      }
+      return result;
     } catch (error) {
-      console.error('Error creating event:', error);
-      return null;
+      if (error instanceof AppError) {
+        return Err(error);
+      }
+      return Err(new AppError(
+        error instanceof Error ? error.message : 'Error creating event',
+        'EVENT_CREATE_FAILED',
+        500
+      ));
     }
   },
 
   /**
    * Update event
    */
-  async updateEvent(id: string, data: Partial<Event>): Promise<Event | null> {
+  async updateEvent(id: string, data: Partial<Event>): Promise<Result<Event, AppError>> {
     if (isMockEnv()) {
       const index = MOCK_EVENTS.findIndex(e => e.id === id);
-      if (index === -1) return null;
+      if (index === -1) return Err(new NotFoundError('Event'));
       MOCK_EVENTS[index] = {
         ...MOCK_EVENTS[index],
         ...data,
         updated: new Date().toISOString()
       };
-      return MOCK_EVENTS[index];
+      return Ok(MOCK_EVENTS[index]);
     }
 
     try {
-      return await pb.collection('events').update<Event>(id, data);
+      const pb = pocketBaseClient.getRawClient();
+      const eventsCollection = createTypedCollection<Event>(pb, 'events');
+      const result = await eventsCollection.update(id, data);
+      if (result.success) {
+        return Ok(result.data);
+      }
+      return result;
     } catch (error) {
-      console.error('Error updating event:', error);
-      return null;
+      if (error instanceof AppError) {
+        return Err(error);
+      }
+      return Err(new AppError(
+        error instanceof Error ? error.message : 'Error updating event',
+        'EVENT_UPDATE_FAILED',
+        500
+      ));
     }
   },
 
@@ -333,7 +380,12 @@ export const eventService = {
     }
 
     try {
-      await pb.collection('events').delete(id);
+      const pb = pocketBaseClient.getRawClient();
+      const eventsCollection = createTypedCollection<Event>(pb, 'events');
+      const result = await eventsCollection.delete(id);
+      if (!result.success) {
+        return false;
+      }
       auditLog.log('event_deleted', { eventId: id }, 'info');
       return true;
     } catch (error) {
@@ -345,9 +397,12 @@ export const eventService = {
   /**
    * Register for event
    */
-  async registerForEvent(eventId: string, userId: string): Promise<Event | null> {
-    const event = await this.getEvent(eventId);
-    if (!event) return null;
+  async registerForEvent(eventId: string, userId: string): Promise<Result<Event, AppError>> {
+    const eventOption = await this.getEvent(eventId);
+    if (!eventOption.hasValue) {
+      return Err(new NotFoundError('Event'));
+    }
+    const event = eventOption.value;
 
     if (event.attendees?.includes(userId)) {
       throw new Error('Already registered');
@@ -360,6 +415,13 @@ export const eventService = {
     const newAttendees = [...(event.attendees || []), userId];
     return await this.updateEvent(eventId, { attendees: newAttendees });
   },
+
+  async unregisterFromEvent(eventId: string, userId: string): Promise<Result<Event, AppError>> {
+    const eventOption = await this.getEvent(eventId);
+    if (!eventOption.hasValue) {
+      return Err(new NotFoundError('Event'));
+    }
+    const event = eventOption.value;
 
   /**
    * Unregister from event
@@ -385,11 +447,17 @@ export const eventService = {
     }
 
     try {
-      return await pb.collection('events').getFullList<Event>({
+      const pb = pocketBaseClient.getRawClient();
+      const eventsCollection = createTypedCollection<Event>(pb, 'events');
+      const result = await eventsCollection.getFullList({
         filter: `type = "${type}" && status = "published"`,
         sort: 'start_time',
         requestKey: null
       });
+      if (result.success) {
+        return result.data;
+      }
+      return [];
     } catch (error) {
       console.error('Error fetching events by type:', error);
       return [];
@@ -417,11 +485,17 @@ export const eventService = {
       if (dateRange) {
         filter += ` && start >= "${dateRange.start}" && start <= "${dateRange.end}"`;
       }
-      return await pb.collection('calendar_events').getFullList<CalendarEvent>({
+      const pb = pocketBaseClient.getRawClient();
+      const calendarEventsCollection = createTypedCollection<CalendarEvent>(pb, 'calendar_events');
+      const result = await calendarEventsCollection.getFullList({
         filter,
         sort: 'start',
         requestKey: null
       });
+      if (result.success) {
+        return result.data;
+      }
+      return [];
     } catch (error) {
       console.error('Error fetching calendar events:', error);
       return [];
@@ -431,7 +505,7 @@ export const eventService = {
   /**
    * Create calendar event
    */
-  async createCalendarEvent(data: Partial<CalendarEvent>): Promise<CalendarEvent | null> {
+  async createCalendarEvent(data: Partial<CalendarEvent>): Promise<Result<CalendarEvent, AppError>> {
     if (isMockEnv()) {
       const newEvent: CalendarEvent = {
         id: `cal-${Date.now()}`,
@@ -450,37 +524,61 @@ export const eventService = {
         updated: new Date().toISOString()
       };
       MOCK_CALENDAR_EVENTS.push(newEvent);
-      return newEvent;
+      return Ok(newEvent);
     }
 
     try {
-      return await pb.collection('calendar_events').create<CalendarEvent>(data);
+      const pb = pocketBaseClient.getRawClient();
+      const calendarEventsCollection = createTypedCollection<CalendarEvent>(pb, 'calendar_events');
+      const result = await calendarEventsCollection.create(data as Partial<CalendarEvent>);
+      if (result.success) {
+        return Ok(result.data);
+      }
+      return result;
     } catch (error) {
-      console.error('Error creating calendar event:', error);
-      return null;
+      if (error instanceof AppError) {
+        return Err(error);
+      }
+      return Err(new AppError(
+        error instanceof Error ? error.message : 'Error creating calendar event',
+        'CALENDAR_EVENT_CREATE_FAILED',
+        500
+      ));
     }
   },
 
   /**
    * Update calendar event
    */
-  async updateCalendarEvent(id: string, data: Partial<CalendarEvent>): Promise<CalendarEvent | null> {
+  async updateCalendarEvent(id: string, data: Partial<CalendarEvent>): Promise<Result<CalendarEvent, AppError>> {
     if (isMockEnv()) {
       const index = MOCK_CALENDAR_EVENTS.findIndex(e => e.id === id);
-      if (index === -1) return null;
+      if (index === -1) return Err(new NotFoundError('Calendar event'));
       MOCK_CALENDAR_EVENTS[index] = {
         ...MOCK_CALENDAR_EVENTS[index],
         ...data,
         updated: new Date().toISOString()
       };
-      return MOCK_CALENDAR_EVENTS[index];
+      return Ok(MOCK_CALENDAR_EVENTS[index]);
     }
 
     try {
-      return await pb.collection('calendar_events').update<CalendarEvent>(id, data);
+      const pb = pocketBaseClient.getRawClient();
+      const calendarEventsCollection = createTypedCollection<CalendarEvent>(pb, 'calendar_events');
+      const result = await calendarEventsCollection.update(id, data);
+      if (result.success) {
+        return Ok(result.data);
+      }
+      return result;
     } catch (error) {
-      console.error('Error updating calendar event:', error);
-      return null;
+      if (error instanceof AppError) {
+        return Err(error);
+      }
+      return Err(new AppError(
+        error instanceof Error ? error.message : 'Error updating calendar event',
+        'CALENDAR_EVENT_UPDATE_FAILED',
+        500
+      ));
     }
   },
 
@@ -497,7 +595,12 @@ export const eventService = {
     }
 
     try {
-      await pb.collection('calendar_events').delete(id);
+      const pb = pocketBaseClient.getRawClient();
+      const calendarEventsCollection = createTypedCollection<CalendarEvent>(pb, 'calendar_events');
+      const result = await calendarEventsCollection.delete(id);
+      if (!result.success) {
+        return false;
+      }
       return true;
     } catch (error) {
       console.error('Error deleting calendar event:', error);

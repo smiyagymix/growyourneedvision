@@ -3,10 +3,14 @@
  * Manages the 5-level intelligence framework for AI responses
  */
 
-import pb from '../lib/pocketbase';
+import { pocketBaseClient } from '../lib/pocketbase';
+import { createTypedCollection } from '../lib/pocketbase-types';
 import { isMockEnv } from '../utils/mockData';
 import { RecordModel } from 'pocketbase';
 import { auditLog } from './auditLogger';
+import { Result, Ok, Err, Option, Some, None } from '../lib/types';
+import { AppError } from './errorHandler';
+import { IntelligenceFileMetadata } from '../types/ai';
 
 export interface IntelligenceFile extends RecordModel {
     id: string;
@@ -18,14 +22,7 @@ export interface IntelligenceFile extends RecordModel {
     token_count?: number;
     chunk_count?: number;
     embedding_status?: 'pending' | 'processing' | 'complete' | 'error';
-    metadata?: {
-        content_type?: string;
-        pages?: number;
-        language?: string;
-        encoding?: string;
-        checksum?: string;
-        [key: string]: unknown;
-    };
+    metadata?: IntelligenceFileMetadata;
     error_message?: string;
     processed_at?: string;
     created: string;

@@ -39,12 +39,14 @@ export interface Incident extends RecordModel {
     };
 }
 
+import { IncidentEventData } from '../types/incident';
+
 export interface IncidentEvent {
     timestamp: string;
     type: 'detected' | 'acknowledged' | 'update' | 'escalated' | 'resolved' | 'closed';
     message: string;
     userId?: string;
-    data?: Record<string, any>;
+    data?: IncidentEventData;
 }
 
 export interface IncidentRule extends RecordModel {
@@ -291,7 +293,7 @@ class IncidentResponseService {
         });
     }
 
-    async addUpdate(id: string, message: string, userId: string, data?: Record<string, any>): Promise<Incident> {
+    async addUpdate(id: string, message: string, userId: string, data?: IncidentEventData): Promise<Incident> {
         const incident = await this.getIncident(id);
 
         const newEvent: IncidentEvent = {

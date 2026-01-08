@@ -1,19 +1,20 @@
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import env from '../config/environment';
 
 // Initialize S3/R2 client
 // Supports AWS S3, Cloudflare R2, MinIO, DigitalOcean Spaces, etc.
 const s3Client = new S3Client({
-    endpoint: import.meta.env.VITE_STORAGE_ENDPOINT || 'http://localhost:9090',
-    region: import.meta.env.VITE_STORAGE_REGION || 'auto', // 'auto' for R2
+    endpoint: env.get('storageEndpoint'),
+    region: env.get('storageRegion'),
     credentials: {
-        accessKeyId: import.meta.env.VITE_STORAGE_ACCESS_KEY || '',
-        secretAccessKey: import.meta.env.VITE_STORAGE_SECRET_KEY || '',
+        accessKeyId: env.get('storageAccessKey'),
+        secretAccessKey: env.get('storageSecretKey'),
     },
     forcePathStyle: true, // Required for MinIO, usually safe for others
 });
 
-const BUCKET_NAME = import.meta.env.VITE_STORAGE_BUCKET || 'growyourneed-files';
+const BUCKET_NAME = env.get('storageBucket');
 
 export const storageService = {
     /**
@@ -21,7 +22,7 @@ export const storageService = {
      */
     async uploadFile(file: File, path: string) {
         // If no credentials, throw error in production
-        if (!import.meta.env.VITE_STORAGE_ACCESS_KEY) {
+        if (!env.get('storageAccessKey')) {
             console.error("Storage Service: No credentials found.");
             throw new Error("Storage credentials missing");
         }
@@ -38,9 +39,9 @@ export const storageService = {
 
             // Construct public URL
             // For R2/S3, this might need a custom domain or public bucket URL
-            const publicUrl = import.meta.env.VITE_STORAGE_PUBLIC_URL 
-                ? `${import.meta.env.VITE_STORAGE_PUBLIC_URL}/${path}`
-                : `${import.meta.env.VITE_STORAGE_ENDPOINT}/${BUCKET_NAME}/${path}`;
+            const publicUrl = env.get('storagePublicUrl') 
+                ? `${env.get('storagePublicUrl')}/${path}`
+                : `${env.get('storageEndpoint')}/${BUCKET_NAME}/${path}`;
 
             return {
                 url: publicUrl,
@@ -56,7 +57,7 @@ export const storageService = {
      * Get a temporary signed URL for viewing/downloading a file
      */
     async getSignedUrl(key: string, expiresIn: number = 3600) {
-        if (!import.meta.env.VITE_STORAGE_ACCESS_KEY) {
+        if (!env.get('storageAccessKey')) {
              return '#';
         }
 
@@ -76,7 +77,7 @@ export const storageService = {
      * Delete file from storage
      */
     async deleteFile(key: string) {
-        if (!import.meta.env.VITE_STORAGE_ACCESS_KEY) return;
+        if (!env.get('storageAccessKey')) return;
 
         try {
             const command = new DeleteObjectCommand({

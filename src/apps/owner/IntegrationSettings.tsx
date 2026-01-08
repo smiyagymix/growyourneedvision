@@ -3,6 +3,8 @@ import { WidgetErrorBoundary } from '../../components/shared/ui/WidgetErrorBound
 import { Card, Icon, Badge, Button } from '../../components/shared/ui/CommonUI';
 import { auditLog } from '../../services/auditLogger';
 import { integrationConfigService, type IntegrationConfig } from '../../services/integrationConfigService';
+import { isOk, unwrap } from '../../lib/types';
+import { AppError } from '../../services/errorHandler';
 import { z } from 'zod';
 import { emailSchema } from '../../validation/schemas';
 import { sanitizeText } from '../../utils/sanitization';
@@ -22,8 +24,12 @@ const IntegrationSettings: React.FC = () => {
     const loadIntegrations = async () => {
         setLoading(true);
         try {
-            const data = await integrationConfigService.getAll();
-            setIntegrations(data);
+            const result = await integrationConfigService.getAll();
+            if (result.success) {
+                setIntegrations(result.data);
+            } else {
+                console.error('Failed to load integrations:', result.error);
+            }
         } catch (error) {
             console.error('Failed to load integrations:', error);
         }
@@ -82,11 +88,13 @@ const IntegrationSettings: React.FC = () => {
                     integration.enabled,
                     newState
                 );
-                const updated = await integrationConfigService.toggleEnabled(integrationId);
-                if (updated) {
+                const result = await integrationConfigService.toggleEnabled(integrationId);
+                if (result.success) {
                     setIntegrations(integrations.map(i =>
-                        i.id === integrationId ? updated : i
+                        i.id === integrationId ? result.data : i
                     ));
+                } else {
+                    throw result.error;
                 }
             } catch (error) {
                 console.error('Failed to toggle integration:', error);
@@ -100,18 +108,18 @@ const IntegrationSettings: React.FC = () => {
         if (integration) {
             setTestingId(integrationId);
             try {
-                const result = await integrationConfigService.testConnection(integrationId);
-                if (result.success) {
+                const testResult = await integrationConfigService.testConnection(integrationId);
+                if (testResult.success) {
                     // Update local state with new connection status
                     setIntegrations(integrations.map(i =>
-                        i.id === integrationId ? { ...i, status: 'connected', last_synced: 'Just now' } : i
+                        i.id === integrationId ? { ...i, status: 'connected' as const, last_synced: 'Just now' } : i
                     ));
-                    alert(result.message);
+                    alert(testResult.data.message);
                 } else {
                     setIntegrations(integrations.map(i =>
-                        i.id === integrationId ? { ...i, status: 'error' } : i
+                        i.id === integrationId ? { ...i, status: 'error' as const } : i
                     ));
-                    alert(result.message);
+                    alert(testResult.error.userMessage || testResult.error.message);
                 }
             } catch (error) {
                 console.error('Test connection failed:', error);
@@ -157,7 +165,10 @@ const IntegrationSettings: React.FC = () => {
 
         if (emailIntegration) {
             try {
-                await integrationConfigService.updateConfig(emailIntegration.id, result.data as any);
+                const updateResult = await integrationConfigService.updateConfig(emailIntegration.id, result.data);
+                if (!updateResult.success) {
+                    throw updateResult.error;
+                }
                 auditLog.settingsChange('integration.email.config', {}, result.data);
                 showToast('Email configuration saved successfully!', 'success');
                 loadIntegrations();
@@ -199,7 +210,10 @@ const IntegrationSettings: React.FC = () => {
 
         if (analyticsIntegration) {
             try {
-                await integrationConfigService.updateConfig(analyticsIntegration.id, result.data as any);
+                const updateResult = await integrationConfigService.updateConfig(analyticsIntegration.id, result.data);
+                if (!updateResult.success) {
+                    throw updateResult.error;
+                }
                 auditLog.settingsChange('integration.analytics.config', {}, result.data);
                 showToast('Analytics configuration saved successfully!', 'success');
                 loadIntegrations();
@@ -241,7 +255,10 @@ const IntegrationSettings: React.FC = () => {
         
         if (paymentIntegration) {
             try {
-                await integrationConfigService.updateConfig(paymentIntegration.id, result.data);
+                const updateResult = await integrationConfigService.updateConfig(paymentIntegration.id, result.data);
+                if (!updateResult.success) {
+                    throw updateResult.error;
+                }
                 auditLog.settingsChange('integration.payment.config', {}, result.data);
                 showToast('Payment configuration saved successfully!', 'success');
                 loadIntegrations();
@@ -285,7 +302,10 @@ const IntegrationSettings: React.FC = () => {
         
         if (storageIntegration) {
             try {
-                await integrationConfigService.updateConfig(storageIntegration.id, result.data);
+                const updateResult = await integrationConfigService.updateConfig(storageIntegration.id, result.data);
+                if (!updateResult.success) {
+                    throw updateResult.error;
+                }
                 auditLog.settingsChange('integration.storage.config', {}, result.data);
                 showToast('Storage configuration saved successfully!', 'success');
                 loadIntegrations();

@@ -7,6 +7,7 @@ import pb from '../lib/pocketbase';
 import { auditLogger } from './auditLogger';
 import { isMockEnv } from '../utils/mockData';
 import { RecordModel } from 'pocketbase';
+import { CustomFields } from '../types/crm';
 
 export interface CRMContact extends RecordModel {
     id: string;
@@ -19,7 +20,7 @@ export interface CRMContact extends RecordModel {
     status: 'lead' | 'prospect' | 'customer' | 'inactive';
     source?: 'website' | 'referral' | 'cold_call' | 'event' | 'social' | 'other';
     tags?: string[];
-    custom_fields?: Record<string, unknown>;
+    custom_fields?: CustomFields;
     notes?: string;
     last_contact?: string;
     next_follow_up?: string;

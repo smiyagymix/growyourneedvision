@@ -24,7 +24,7 @@ export interface Segment extends RecordModel {
     name: string;
     type: 'Dynamic' | 'Static';
     count: number;
-    criteria: Record<string, unknown>;
+    criteria: SegmentCriteria;
     last_calculated?: string;
 }
 
@@ -35,7 +35,7 @@ export interface Audience extends RecordModel {
     size: number;
     status: 'Building' | 'Ready' | 'Syncing' | 'Error';
     source: string;
-    criteria: Record<string, unknown>;
+    criteria: SegmentCriteria;
     last_synced?: string;
 }
 
@@ -74,7 +74,7 @@ export interface CustomerProfile extends RecordModel {
     last_activity: string;
     source: string;
     tags: string[];
-    custom_attributes: Record<string, unknown>;
+    custom_attributes: CustomAttributes;
     events_count: number;
 }
 
@@ -84,7 +84,7 @@ export interface PersonalizationRule extends RecordModel {
     status: 'Active' | 'Inactive' | 'Testing';
     target_audience: string;
     trigger_type: 'Page Visit' | 'User Attribute' | 'Behavior' | 'Time-based';
-    trigger_conditions: Record<string, unknown>;
+    trigger_conditions: TriggerConditions;
     content_variations: ContentVariation[];
     performance: {
         impressions: number;
@@ -93,10 +93,26 @@ export interface PersonalizationRule extends RecordModel {
     };
 }
 
+import { 
+    ContentVariationData, 
+    AutomationCondition, 
+    AutomationActionConfig,
+    SegmentCriteria,
+    AudienceCriteria,
+    CustomAttributes,
+    TriggerConditions,
+    JourneyStepConfig,
+    CanvasData,
+    ROICampaignData,
+    LeadData,
+    ScoringRuleData,
+    ContentGenerationContext
+} from '../types/marketing';
+
 export interface ContentVariation {
     id: string;
     name: string;
-    content: Record<string, unknown>;
+    content: ContentVariationData;
     weight: number;
 }
 
@@ -105,8 +121,8 @@ export interface AutomationRule extends RecordModel {
     description: string;
     status: 'Active' | 'Paused' | 'Draft';
     trigger: string;
-    conditions: Record<string, unknown>;
-    actions: Array<{ type: string; config: Record<string, unknown> }>;
+    conditions: AutomationCondition[];
+    actions: Array<{ type: string; config: AutomationActionConfig }>;
     performance: {
         triggered: number;
         completed: number;
@@ -128,13 +144,13 @@ export interface Journey extends RecordModel {
 
 export interface JourneyTrigger {
     type: 'Event' | 'Segment Entry' | 'Date' | 'API';
-    conditions: Record<string, unknown>;
+    conditions: SegmentCriteria;
 }
 
 export interface JourneyStep {
     id: string;
     type: 'Email' | 'SMS' | 'Wait' | 'Condition' | 'Split' | 'Webhook' | 'Tag';
-    config: Record<string, unknown>;
+    config: JourneyStepConfig;
     next_steps?: string[];
     position: { x: number; y: number };
 }
@@ -185,7 +201,7 @@ export interface CreativeProject extends RecordModel {
     name: string;
     type: 'Social Post' | 'Story' | 'Ad Banner' | 'Email Header' | 'Blog Cover' | 'Presentation';
     thumbnail_url?: string;
-    canvas_data: Record<string, unknown>;
+    canvas_data: CanvasData;
     dimensions: { width: number; height: number };
     last_edited: string;
 }
@@ -569,7 +585,7 @@ export const marketingService = {
                         { id: 's1', type: 'Email', config: { template: 'welcome_1' }, next_steps: ['s2'], position: { x: 0, y: 0 } },
                         { id: 's2', type: 'Wait', config: { duration: '2d' }, next_steps: ['s3'], position: { x: 0, y: 100 } },
                         { id: 's3', type: 'Email', config: { template: 'welcome_2' }, next_steps: ['s4'], position: { x: 0, y: 200 } },
-                        { id: 's4', type: 'Condition', config: { condition: 'has_completed_onboarding' }, next_steps: ['s5', 's6'], position: { x: 0, y: 300 } },
+                        { id: 's4', type: 'Condition', config: { condition: { field: 'onboarding_status', operator: 'equals', value: 'completed' } as AutomationCondition }, next_steps: ['s5', 's6'], position: { x: 0, y: 300 } },
                         { id: 's5', type: 'Tag', config: { tag: 'onboarded' }, position: { x: -100, y: 400 } },
                         { id: 's6', type: 'Email', config: { template: 'help_offer' }, position: { x: 100, y: 400 } },
                     ],
@@ -935,7 +951,7 @@ export const marketingService = {
                     description: 'Automated email sequence for new users',
                     status: 'Active',
                     trigger: 'user_signup',
-                    conditions: {},
+                    conditions: [],
                     actions: [{ type: 'send_email', config: { template: 'welcome' } }],
                     performance: { triggered: 150, completed: 140, conversion_rate: 15.2 },
                     collectionId: '', collectionName: '', created: '', updated: ''
@@ -953,7 +969,7 @@ export const marketingService = {
                 description: data.description || '',
                 status: 'Draft',
                 trigger: data.trigger || '',
-                conditions: data.conditions || {},
+                conditions: data.conditions || [],
                 actions: data.actions || [],
                 performance: { triggered: 0, completed: 0, conversion_rate: 0 },
                 collectionId: '', collectionName: '', created: '', updated: ''
@@ -984,7 +1000,7 @@ export const marketingService = {
                 description: '',
                 status: 'Active',
                 trigger: '',
-                conditions: {},
+                conditions: [],
                 actions: [],
                 performance: { triggered: 0, completed: 0, conversion_rate: 0 },
                 collectionId: '', collectionName: '', created: '', updated: ''
@@ -1007,7 +1023,7 @@ export const marketingService = {
         return await pb.collection('marketing_roi').getFullList({ requestKey: null });
     },
 
-    async addROICampaign(data: any): Promise<any> {
+    async addROICampaign(data: ROICampaignData): Promise<ROICampaignData & { id: string }> {
         if (isMockEnv()) {
             return { id: Date.now().toString(), ...data };
         }
@@ -1059,11 +1075,11 @@ export const marketingService = {
         return await pb.collection('leads').getFullList({ requestKey: null });
     },
 
-    async updateLead(id: string, data: any): Promise<any> {
+    async updateLead(id: string, data: Partial<LeadData>): Promise<RecordModel & Partial<LeadData>> {
         if (isMockEnv()) {
-            return { id, ...data };
+            return { id, collectionId: 'mock', collectionName: 'leads', created: new Date().toISOString(), updated: new Date().toISOString(), ...data } as RecordModel & Partial<LeadData>;
         }
-        return await pb.collection('leads').update(id, data);
+        return await pb.collection('leads').update(id, data) as RecordModel & Partial<LeadData>;
     },
 
     async getScoringRules(): Promise<any[]> {
@@ -1076,11 +1092,11 @@ export const marketingService = {
         return await pb.collection('scoring_rules').getFullList({ requestKey: null });
     },
 
-    async updateScoringRule(id: string, data: any): Promise<any> {
+    async updateScoringRule(id: string, data: Partial<ScoringRuleData>): Promise<RecordModel & Partial<ScoringRuleData>> {
         if (isMockEnv()) {
-            return { id, ...data };
+            return { id, collectionId: 'mock', collectionName: 'scoring_rules', created: new Date().toISOString(), updated: new Date().toISOString(), ...data } as RecordModel & Partial<ScoringRuleData>;
         }
-        return await pb.collection('scoring_rules').update(id, data);
+        return await pb.collection('scoring_rules').update(id, data) as RecordModel & Partial<ScoringRuleData>;
     },
 
     async getChannelStats(): Promise<any[]> {
@@ -1133,7 +1149,7 @@ export const marketingService = {
         return await pb.collection('content_history').getFullList({ requestKey: null });
     },
 
-    async generateContent(prompt: string, context: any): Promise<string> {
+    async generateContent(prompt: string, context?: ContentGenerationContext): Promise<string> {
         if (isMockEnv()) {
             return `Generated content based on: ${prompt}`;
         }

@@ -1,10 +1,11 @@
 import pb from '@/lib/pocketbase';
 import { RecordModel } from 'pocketbase';
 import { isMockEnv } from '@/utils/mockData';
+import { AIConfigValue } from '../types/aiManagement';
 
 export interface AIConfig extends RecordModel {
     key: string;
-    value: any;
+    value: AIConfigValue;
     description: string;
 }
 

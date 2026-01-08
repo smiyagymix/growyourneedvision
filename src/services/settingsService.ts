@@ -124,7 +124,7 @@ const MOCK_API_KEYS: APIKey[] = [
         id: 'key-1',
         user: 'user-1',
         name: 'Production API Key',
-        key: 'gyn_prod_xxxxxxxxxxxxxxxxxxxx',
+        key: env.get('serviceApiKey') || 'gyn_prod_xxxxxxxxxxxxxxxxxxxx',
         last_used: '2024-01-25T10:30:00Z',
         expires: '2025-01-25T00:00:00Z',
         permissions: ['read', 'write'],
@@ -529,7 +529,7 @@ export const settingsService = {
     },
 
     // Export Data
-    exportUserData: async (userId: string): Promise<{ success: boolean; data?: Record<string, unknown> }> => {
+    exportUserData: async (userId: string): Promise<Result<{ data: UserExportData }, AppError>> => {
         if (isMockEnv()) {
             return {
                 success: true,

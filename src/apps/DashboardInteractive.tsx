@@ -6,6 +6,9 @@ import { useRealtimeContext } from '../context/RealtimeContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
+import pb from '../lib/pocketbase';
+import { isMockEnv } from '../utils/mockData';
+import { RecordSubscription } from 'pocketbase';
 
 interface DashboardProps {
   activeTab: string;
@@ -49,28 +52,111 @@ const DashboardInteractive: React.FC<DashboardProps> = ({ activeTab }) => {
     { id: 'stats', title: 'Statistics', component: 'stats', order: 2 }
   ]);
   
-  // Simulate real-time data updates
+  // Real-time data subscription from PocketBase
   useEffect(() => {
-    const interval = setInterval(() => {
-      const newDataPoint = {
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        value: Math.floor(Math.random() * 100) + 50,
-        users: Math.floor(Math.random() * 50) + 20,
-        revenue: Math.floor(Math.random() * 5000) + 1000
+    // Initialize with historical data
+    const fetchInitialChartData = async () => {
+      if (isMockEnv()) {
+        // Generate mock historical data for development
+        const mockData = Array.from({ length: 12 }, (_, i) => {
+          const time = new Date(Date.now() - (11 - i) * 60000);
+          return {
+            time: time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            value: Math.floor(Math.random() * 100) + 50,
+            users: Math.floor(Math.random() * 50) + 20,
+            revenue: Math.floor(Math.random() * 5000) + 1000
+          };
+        });
+        setChartData(mockData);
+        return;
+      }
+
+      try {
+        const records = await pb.collection('analytics_events').getList(1, 12, {
+          sort: '-created',
+          requestKey: null,
+        });
+        
+        const historicalData = records.items.reverse().map(record => ({
+          time: new Date(record.created).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          value: record.value || 0,
+          users: record.active_users || 0,
+          revenue: record.revenue || 0
+        }));
+        
+        if (historicalData.length > 0) {
+          setChartData(historicalData);
+        }
+      } catch (err) {
+        console.warn('Failed to fetch analytics data:', err);
+      }
+    };
+
+    fetchInitialChartData();
+
+    // Subscribe to real-time updates
+    if (!isMockEnv()) {
+      pb.collection('analytics_events').subscribe('*', (e: RecordSubscription<any>) => {
+        if (e.action === 'create') {
+          const newDataPoint = {
+            time: new Date(e.record.created).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            value: e.record.value || 0,
+            users: e.record.active_users || 0,
+            revenue: e.record.revenue || 0
+          };
+          setChartData(prev => [...prev.slice(-11), newDataPoint]);
+        }
+      }).catch(err => console.warn('Analytics subscription failed:', err));
+
+      return () => {
+        pb.collection('analytics_events').unsubscribe('*');
       };
+    } else {
+      // Mock environment simulation
+      const interval = setInterval(() => {
+        const newDataPoint = {
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          value: Math.floor(Math.random() * 100) + 50,
+          users: Math.floor(Math.random() * 50) + 20,
+          revenue: Math.floor(Math.random() * 5000) + 1000
+        };
+        setChartData(prev => [...prev.slice(-11), newDataPoint]);
+      }, 5000);
       
-      setChartData(prev => [...prev.slice(-11), newDataPoint]);
-    }, 3000);
-    
-    return () => clearInterval(interval);
+      return () => clearInterval(interval);
+    }
   }, []);
   
-  // Real-time activity stream
+  // Real-time activity stream with PocketBase subscription
   useEffect(() => {
+    const getActivityStyle = (type: string): { icon: string; color: string } => {
+      const styles: Record<string, { icon: string; color: string }> = {
+        user: { icon: 'UserPlus', color: 'text-green-500' },
+        payment: { icon: 'CreditCard', color: 'text-blue-500' },
+        alert: { icon: 'ExclamationTriangle', color: 'text-orange-500' },
+        success: { icon: 'CheckCircle', color: 'text-green-500' },
+        error: { icon: 'XCircle', color: 'text-red-500' },
+        default: { icon: 'Bell', color: 'text-gray-500' }
+      };
+      return styles[type] || styles.default;
+    };
+
+    const transformActivity = (record: any): Activity => {
+      const style = getActivityStyle(record.type || 'default');
+      return {
+        id: record.id,
+        type: record.type || 'info',
+        message: record.message || 'Activity',
+        user: record.user_name || 'System',
+        timestamp: record.created || new Date().toISOString(),
+        icon: style.icon,
+        color: style.color
+      };
+    };
+
     if (realtimeActivities.length > 0) {
-      setActivities(realtimeActivities);
-    } else {
-      // Mock activities for demo
+      setActivities(realtimeActivities.map(transformActivity));
+    } else if (isMockEnv()) {
       const mockActivities: Activity[] = [
         { id: '1', type: 'user', message: 'New user registered', user: 'John Doe', timestamp: new Date().toISOString(), icon: 'UserPlus', color: 'text-green-500' },
         { id: '2', type: 'payment', message: 'Payment received $99', user: 'System', timestamp: new Date(Date.now() - 60000).toISOString(), icon: 'CreditCard', color: 'text-blue-500' },
@@ -78,6 +164,19 @@ const DashboardInteractive: React.FC<DashboardProps> = ({ activeTab }) => {
         { id: '4', type: 'success', message: 'Backup completed', user: 'System', timestamp: new Date(Date.now() - 180000).toISOString(), icon: 'CheckCircle', color: 'text-green-500' }
       ];
       setActivities(mockActivities);
+    }
+
+    if (!isMockEnv()) {
+      pb.collection('activities').subscribe('*', (e: RecordSubscription<any>) => {
+        if (e.action === 'create') {
+          const newActivity = transformActivity(e.record);
+          setActivities(prev => [newActivity, ...prev].slice(0, 10));
+        }
+      }).catch(err => console.warn('Activity subscription failed:', err));
+
+      return () => {
+        pb.collection('activities').unsubscribe('*');
+      };
     }
   }, [realtimeActivities]);
   

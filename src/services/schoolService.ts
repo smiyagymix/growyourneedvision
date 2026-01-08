@@ -1,13 +1,15 @@
 import pb from '../lib/pocketbase';
 import { RecordModel } from 'pocketbase';
 import { isMockEnv } from '../utils/mockData';
+import { ActivityMetadata } from '../types/activity';
 
 export interface ActivityDetails {
     targetId?: string;
     targetName?: string;
     actionType?: string;
-    metadata?: Record<string, string | number | boolean | null>;
-    [key: string]: string | number | boolean | null | undefined | Record<string, unknown>;
+    metadata?: ActivityMetadata;
+    role?: string;
+    [key: string]: string | number | boolean | ActivityMetadata | undefined;
 }
 
 export interface SchoolActivity {

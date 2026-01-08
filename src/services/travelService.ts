@@ -1,20 +1,10 @@
 import pb from '../lib/pocketbase';
 import { isMockEnv } from '../utils/mockData';
 
-export interface FlightDetails {
-    airline: string;
-    flightNumber: string;
-    seat?: string;
-    gate?: string;
-}
+import { BookingDetails, FlightDetails, HotelDetails } from '../types/travel';
 
-export interface HotelDetails {
-    hotelName: string;
-    roomType: string;
-    address: string;
-}
-
-export type BookingDetails = FlightDetails | HotelDetails | Record<string, unknown>;
+// Re-export types from types file
+export type { BookingDetails, FlightDetails, HotelDetails };
 
 export interface DayActivity {
     time: string;

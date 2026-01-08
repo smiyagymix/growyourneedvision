@@ -8,6 +8,7 @@
 import pb from '../lib/pocketbase';
 import * as Sentry from '@sentry/react';
 import { isMockEnv } from '../utils/mockData';
+import { RuleEvaluationContext, RuleTestResult } from '../types/billingRules';
 
 export interface BillingRule {
     id: string;
@@ -32,10 +33,12 @@ export interface RuleTrigger {
     schedule?: string; // cron expression
 }
 
+import { RuleValue, RuleActionMetadata } from '../types/billingRules';
+
 export interface RuleCondition {
     field: string;
     operator: 'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'between';
-    value: any;
+    value: RuleValue;
 }
 
 export interface RuleAction {
@@ -43,7 +46,7 @@ export interface RuleAction {
     amount?: number;
     amountType?: 'fixed' | 'percentage';
     target?: string;
-    metadata?: Record<string, any>;
+    metadata?: RuleActionMetadata;
 }
 
 export interface BillingCalculation {
@@ -164,7 +167,7 @@ class CustomBillingRulesService {
                 return { ...rule!, ...updates, updated: new Date().toISOString() };
             }
 
-            const data: any = { ...updates };
+            const data: Partial<BillingRule> = { ...updates };
             if (updates.trigger) data.trigger = JSON.stringify(updates.trigger);
             if (updates.conditions) data.conditions = JSON.stringify(updates.conditions);
             if (updates.action) data.action = JSON.stringify(updates.action);
@@ -266,7 +269,7 @@ class CustomBillingRulesService {
     /**
      * Evaluate rule trigger conditions
      */
-    async evaluateTrigger(ruleId: string, tenantId: string, context: any): Promise<boolean> {
+    async evaluateTrigger(ruleId: string, tenantId: string, context: { [key: string]: string | number | boolean }): Promise<boolean> {
         try {
             const rule = isMockEnv() 
                 ? MOCK_RULES.find(r => r.id === ruleId)!
@@ -303,7 +306,7 @@ class CustomBillingRulesService {
     /**
      * Execute rule action
      */
-    async executeAction(ruleId: string, tenantId: string, context: any): Promise<void> {
+    async executeAction(ruleId: string, tenantId: string, context: { [key: string]: string | number | boolean }): Promise<void> {
         try {
             const rule = isMockEnv()
                 ? MOCK_RULES.find(r => r.id === ruleId)!
@@ -379,11 +382,7 @@ class CustomBillingRulesService {
     /**
      * Test rule with sample data
      */
-    async testRule(rule: Omit<BillingRule, 'id' | 'created' | 'updated'>, sampleData: any): Promise<{
-        triggered: boolean;
-        result?: any;
-        errors?: string[];
-    }> {
+    async testRule(rule: Omit<BillingRule, 'id' | 'created' | 'updated'>, sampleData: RuleEvaluationContext): Promise<RuleTestResult> {
         try {
             const triggered = rule.conditions.every(condition =>
                 this.evaluateCondition(condition, sampleData)
@@ -394,7 +393,7 @@ class CustomBillingRulesService {
             }
 
             // Simulate action result
-            let result: any = {};
+            let result: RuleTestResult['result'] = undefined;
             switch (rule.action.type) {
                 case 'apply_discount':
                     result = {
@@ -413,7 +412,7 @@ class CustomBillingRulesService {
                     break;
             }
 
-            return { triggered: true, result };
+            return { triggered: true, result: result };
         } catch (error) {
             return {
                 triggered: false,
@@ -425,7 +424,7 @@ class CustomBillingRulesService {
     /**
      * Check if rule is applicable to tenant
      */
-    private isRuleApplicable(rule: BillingRule, tenant: any, usage: UsageMetric[]): boolean {
+    private isRuleApplicable(rule: BillingRule, tenant: Tenant, usage: UsageMetric[]): boolean {
         // Check tenant filter
         if (rule.tenantIds && !rule.tenantIds.includes(tenant.id)) {
             return false;
@@ -448,7 +447,7 @@ class CustomBillingRulesService {
      */
     private applyRule(
         rule: BillingRule,
-        tenant: any,
+        tenant: Tenant,
         usage: UsageMetric[],
         baseAmount: number
     ): BillingCalculation['adjustments'][0] | null {
@@ -503,7 +502,7 @@ class CustomBillingRulesService {
     /**
      * Evaluate condition
      */
-    private evaluateCondition(condition: RuleCondition, context: any): boolean {
+    private evaluateCondition(condition: RuleCondition, context: RuleEvaluationContext): boolean {
         const value = this.getNestedValue(context, condition.field);
 
         switch (condition.operator) {
@@ -533,7 +532,7 @@ class CustomBillingRulesService {
     /**
      * Get nested value from object
      */
-    private getNestedValue(obj: any, path: string): any {
+    private getNestedValue(obj: RuleEvaluationContext, path: string): string | number | boolean | undefined {
         return path.split('.').reduce((current, key) => current?.[key], obj);
     }
 
@@ -564,7 +563,7 @@ class CustomBillingRulesService {
         console.log(`Added $${amount} credit to tenant ${tenantId}`);
     }
 
-    private async sendNotification(tenantId: string, metadata: any): Promise<void> {
+    private async sendNotification(tenantId: string, metadata: { [key: string]: string | number | boolean }): Promise<void> {
         console.log(`Sent notification to tenant ${tenantId}`, metadata);
     }
 

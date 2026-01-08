@@ -8,6 +8,7 @@ import pb from '../lib/pocketbase';
 import { isMockEnv } from '../utils/mockData';
 import { captureException, measurePerformance, addBreadcrumb } from '../lib/sentry';
 import { RecordModel } from 'pocketbase';
+import { VariantConfig } from '../types/abTesting';
 
 // ==================== TYPES ====================
 
@@ -34,7 +35,7 @@ export interface ABVariant {
     id: string;
     name: string;
     description: string;
-    config: Record<string, any>;
+    config: VariantConfig;
     weight: number; // 0-100 (percentage of traffic)
     isControl: boolean;
 }

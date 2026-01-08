@@ -7,9 +7,11 @@ export interface DealContext {
     stage?: string;
 }
 
+import { AIContextData } from '../types/ai';
+
 export interface AIContext {
     deal?: DealContext;
-    [key: string]: unknown;
+    [key: string]: string | number | boolean | DealContext | AIContextData | undefined;
 }
 
 export interface AICompletionRequest {
@@ -86,7 +88,7 @@ class AIService {
         }
     }
 
-    private formatPromptWithContext(prompt: string, context?: Record<string, unknown>): string {
+    private formatPromptWithContext(prompt: string, context?: AIContextData): string {
         if (!context) return prompt;
         return `${prompt}\n\nContext Data:\n${JSON.stringify(context, null, 2)}`;
     }

@@ -1,5 +1,9 @@
 import env from '../config/environment';
-import pb from '../lib/pocketbase';
+import { pocketBaseClient } from '../lib/pocketbase';
+import { createTypedCollection } from '../lib/pocketbase-types';
+import { Result, Ok, Err } from '../lib/types';
+import { AppError } from './errorHandler';
+import { AuditMetadata } from '../types/audit';
 
 export interface AuditLogRecord {
   id?: string;
@@ -9,7 +13,7 @@ export interface AuditLogRecord {
   resource_id?: string;
   user_id?: string;
   severity?: string;
-  metadata?: unknown;
+  metadata?: AuditMetadata;
 }
 
 export interface PaginatedAuditResult {
@@ -108,7 +112,7 @@ export async function logAudit(
   action: string,
   details: string,
   severity: string = 'info',
-  metadata?: Record<string, any>
+  metadata?: AuditMetadata
 ): Promise<void> {
   const record: AuditLogRecord = {
     timestamp: new Date().toISOString(),

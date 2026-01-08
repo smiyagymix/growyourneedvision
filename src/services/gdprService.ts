@@ -3,8 +3,12 @@
  * Provides user data portability and right-to-be-forgotten functionality
  */
 
-import pb from '../lib/pocketbase';
+import { pocketBaseClient } from '../lib/pocketbase';
+import { createTypedCollection } from '../lib/pocketbase-types';
 import { isMockEnv } from '../utils/mockData';
+import { Result, Ok, Err } from '../lib/types';
+import { AppError } from './errorHandler';
+import { UserExportData } from '../types/userData';
 
 export interface GDPRExportData {
     exportId: string;
@@ -14,59 +18,61 @@ export interface GDPRExportData {
     status: 'pending' | 'processing' | 'completed' | 'failed';
     downloadUrl?: string;
     expiresAt?: string;
-    data?: {
-        profile: any;
-        activities: any[];
-        messages: any[];
-        documents: any[];
-        grades?: any[];
-        courses?: any[];
-        wellness?: any[];
-        metadata: {
-            totalRecords: number;
-            collections: string[];
-            format: string;
-        };
-    };
+    data?: UserExportData;
 }
 
 /**
  * Request GDPR data export for a user
  * Aggregates all user data across collections
  */
-export async function requestGDPRExport(userId: string, tenantId?: string): Promise<GDPRExportData> {
+export async function requestGDPRExport(userId: string, tenantId?: string): Promise<Result<GDPRExportData, AppError>> {
     if (isMockEnv()) {
-        return {
+        return Ok({
             exportId: 'mock-export-123',
             userId,
             requestedAt: new Date().toISOString(),
             status: 'pending'
-        };
+        });
     }
 
     try {
+        const pb = pocketBaseClient.getRawClient();
+        const exportService = createTypedCollection<GDPRExportData>(pb, 'gdpr_export_requests');
+        
         // Create export request record
-        const exportRequest = await pb.collection('gdpr_export_requests').create({
-            user: userId,
-            tenantId: tenantId || null,
+        const createResult = await exportService.create({
+            userId,
+            tenantId: tenantId || undefined,
             status: 'pending',
-            requested_at: new Date().toISOString()
-        });
+            requestedAt: new Date().toISOString()
+        } as Partial<GDPRExportData>);
+
+        if (!createResult.success) {
+            return createResult;
+        }
+
+        const exportRequest = createResult.data;
 
         // Start async export process (in production, this would be a background job)
         processGDPRExport(exportRequest.id, userId, tenantId).catch(error => {
             console.error('Background GDPR export failed:', error);
         });
 
-        return {
+        return Ok({
             exportId: exportRequest.id,
             userId,
-            requestedAt: exportRequest.requested_at,
+            requestedAt: exportRequest.requestedAt,
             status: 'pending'
-        };
+        });
     } catch (error) {
-        console.error('Failed to request GDPR export:', error);
-        throw new Error('Failed to initiate data export');
+        if (error instanceof AppError) {
+            return Err(error);
+        }
+        return Err(new AppError(
+            error instanceof Error ? error.message : 'Failed to initiate data export',
+            'GDPR_EXPORT_FAILED',
+            500
+        ));
     }
 }
 
@@ -96,10 +102,25 @@ async function processGDPRExport(exportId: string, userId: string, tenantId?: st
             'documents'
         ];
 
-        const exportData: any = {
-            exportId,
-            userId,
-            exportedAt: new Date().toISOString(),
+        const exportData: UserExportData = {
+            profile: {
+                id: userId,
+                name: '',
+                email: '',
+                role: 'User',
+                verified: false,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            },
+            activities: [],
+            messages: [],
+            documents: [],
+            metadata: {
+                totalRecords: 0,
+                collections: [],
+                format: 'json',
+                exportedAt: new Date().toISOString()
+            }
             collections: {}
         };
 
@@ -142,7 +163,7 @@ async function processGDPRExport(exportId: string, userId: string, tenantId?: st
         // Calculate totals
         exportData.metadata = {
             totalRecords: Object.values(exportData.collections).reduce(
-                (sum, records: any) => sum + (Array.isArray(records) ? records.length : 0),
+                (sum, records: unknown) => sum + (Array.isArray(records) ? records.length : 0) as number,
                 0
             ),
             collectionCount: Object.keys(exportData.collections).length,

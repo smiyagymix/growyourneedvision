@@ -12,7 +12,7 @@ import { isMockEnv } from '../utils/mockData';
 export interface SearchFilter {
     field: string;
     operator: 'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'contains' | 'startsWith' | 'endsWith';
-    value: any;
+    value: string | number | boolean;
 }
 
 export interface SearchFacet {
@@ -31,9 +31,11 @@ export interface SearchQuery {
     tenantId?: string;
 }
 
+import { SearchRecord } from '../types/search';
+
 export interface SearchResult {
     collection: string;
-    record: any;
+    record: SearchRecord;
     score: number;
     highlights?: { field: string; snippet: string }[];
 }
@@ -423,7 +425,7 @@ class AdvancedSearchService {
     /**
      * Calculate relevance score based on query match
      */
-    private calculateRelevanceScore(record: any, query: string, fields: string[]): number {
+    private calculateRelevanceScore(record: SearchRecord, query: string, fields: string[]): number {
         if (!query) return 1;
 
         let score = 0;
@@ -452,7 +454,7 @@ class AdvancedSearchService {
     /**
      * Generate highlights for matched fields
      */
-    private generateHighlights(record: any, query: string, fields: string[]): { field: string; snippet: string }[] {
+    private generateHighlights(record: SearchRecord, query: string, fields: string[]): { field: string; snippet: string }[] {
         if (!query) return [];
 
         const highlights: { field: string; snippet: string }[] = [];

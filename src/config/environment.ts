@@ -48,6 +48,26 @@ interface EnvironmentConfig {
   // School Settings (will be overridden by database)
   defaultSchoolName: string;
   defaultAcademicYear: string;
+
+  // Storage Configuration
+  storageEndpoint: string;
+  storageRegion: string;
+  storageAccessKey: string;
+  storageSecretKey: string;
+  storageBucket: string;
+  storagePublicUrl: string;
+
+  // E-commerce
+  medusaBackendUrl: string;
+
+  // Analytics & Integrations
+  googleAnalyticsId: string;
+  slackWebhookUrl: string;
+
+  // Service Health Check Endpoints
+  pocketbaseHealthPath: string;
+  aiServiceHealthPath: string;
+  paymentServerHealthPath: string;
 }
 
 class Environment {
@@ -101,6 +121,26 @@ class Environment {
       // Default values (will be replaced by database in runtime)
       defaultSchoolName: this.getEnvVar('VITE_DEFAULT_SCHOOL_NAME', 'School'),
       defaultAcademicYear: this.getEnvVar('VITE_DEFAULT_ACADEMIC_YEAR', this.getCurrentAcademicYear()),
+
+      // Storage Configuration
+      storageEndpoint: this.getEnvVar('VITE_STORAGE_ENDPOINT', 'http://localhost:9090'),
+      storageRegion: this.getEnvVar('VITE_STORAGE_REGION', 'auto'),
+      storageAccessKey: this.getEnvVar('VITE_STORAGE_ACCESS_KEY', ''),
+      storageSecretKey: this.getEnvVar('VITE_STORAGE_SECRET_KEY', ''),
+      storageBucket: this.getEnvVar('VITE_STORAGE_BUCKET', 'growyourneed-files'),
+      storagePublicUrl: this.getEnvVar('VITE_STORAGE_PUBLIC_URL', ''),
+
+      // E-commerce
+      medusaBackendUrl: this.getEnvVar('VITE_MEDUSA_BACKEND_URL', 'http://localhost:9000'),
+
+      // Analytics & Integrations
+      googleAnalyticsId: this.getEnvVar('VITE_GOOGLE_ANALYTICS_ID', ''),
+      slackWebhookUrl: this.getEnvVar('VITE_SLACK_WEBHOOK_URL', ''),
+
+      // Service Health Check Endpoints
+      pocketbaseHealthPath: this.getEnvVar('VITE_POCKETBASE_HEALTH_PATH', '/api/health'),
+      aiServiceHealthPath: this.getEnvVar('VITE_AI_SERVICE_HEALTH_PATH', '/health'),
+      paymentServerHealthPath: this.getEnvVar('VITE_PAYMENT_SERVER_HEALTH_PATH', '/health'),
     };
 
     // Log configuration in development
