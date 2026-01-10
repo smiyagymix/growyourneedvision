@@ -1,5 +1,6 @@
 import pb from '../../lib/pocketbase';
 import CryptoJS from 'crypto-js';
+import { TokenPayload } from '../../types/services';
 
 export interface TokenPair {
   accessToken: string;
@@ -211,7 +212,7 @@ export class TokenService {
   /**
    * Get token payload (decoded without verification for UI purposes)
    */
-  static getTokenPayload(token: string): any {
+  static getTokenPayload(token: string): TokenPayload | null {
     try {
       const parts = token.split('.');
       if (parts.length !== 3) return null;
@@ -221,7 +222,13 @@ export class TokenService {
       const paddedPayload = payload + '='.repeat((4 - payload.length % 4) % 4);
       const decoded = atob(paddedPayload);
       
-      return JSON.parse(decoded);
+      const parsed = JSON.parse(decoded);
+      
+      // Validate required JWT fields
+      if (typeof parsed === 'object' && parsed !== null && typeof parsed.sub === 'string' && typeof parsed.exp === 'number') {
+        return parsed as TokenPayload;
+      }
+      return null;
     } catch (error) {
       console.error('❌ Error decoding token payload:', error);
       return null;
@@ -231,7 +238,7 @@ export class TokenService {
   /**
    * Get user information from current token
    */
-  static getCurrentUser(): any | null {
+  static getCurrentUser(): TokenPayload | null {
     const token = this.getAccessToken();
     if (!token) return null;
     

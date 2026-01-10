@@ -3,9 +3,9 @@
  * Analyzes customer behavior patterns to predict and prevent churn
  */
 
-import Stripe from 'stripe';
+import { getStripe } from './stripeClient.js';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const stripe = getStripe();
 
 class ChurnPredictionService {
     /**

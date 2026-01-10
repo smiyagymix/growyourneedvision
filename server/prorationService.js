@@ -4,10 +4,11 @@
  * upgrades, downgrades, and mid-cycle adjustments
  */
 
-import Stripe from 'stripe';
 import { logAudit } from './auditLogger.js';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+import { getStripe } from './stripeClient.js';
+
+const stripe = getStripe();
 
 /**
  * Calculate proration amount for plan change

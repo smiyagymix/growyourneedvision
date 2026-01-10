@@ -3,9 +3,9 @@
  * Handles trial periods, conversions, and automated notifications
  */
 
-import Stripe from 'stripe';
+import { getStripe } from './stripeClient.js';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const stripe = getStripe();
 
 class TrialManagementService {
     /**

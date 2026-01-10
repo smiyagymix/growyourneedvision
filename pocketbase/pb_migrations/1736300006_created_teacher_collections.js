@@ -207,7 +207,7 @@ migrate((db) => {
     "options": {}
   });
 
-  Dao(db).saveCollection(lessonPlans);
+  new Dao(db).saveCollection(lessonPlans);
 
   // Grade Entries Collection
   const gradeEntries = new Collection({
@@ -442,7 +442,7 @@ migrate((db) => {
     "options": {}
   });
 
-  Dao(db).saveCollection(gradeEntries);
+  new Dao(db).saveCollection(gradeEntries);
 
   // Teacher Schedule Collection
   const teacherSchedule = new Collection({
@@ -623,7 +623,7 @@ migrate((db) => {
     "options": {}
   });
 
-  return Dao(db).saveCollection(teacherSchedule);
+  return new Dao(db).saveCollection(teacherSchedule);
 }, (db) => {
   const dao = new Dao(db);
   

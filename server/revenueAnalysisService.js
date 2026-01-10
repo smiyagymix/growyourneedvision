@@ -3,10 +3,11 @@
  * Provides comprehensive revenue metrics, forecasting, and analysis
  */
 
-import Stripe from 'stripe';
 import cacheService, { CacheKeys, CacheTTL } from './cacheService.js';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
+import { getStripe } from './stripeClient.js';
+
+const stripe = getStripe();
 
 /**
  * Calculate Monthly Recurring Revenue (MRR)

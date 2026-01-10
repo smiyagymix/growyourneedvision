@@ -3,7 +3,7 @@ import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import Stripe from 'stripe';
+import { getStripe } from './stripeClient.js';
 import { logAudit, auditMiddleware, getAuditStats, flushAuditBuffer } from './auditLogger.js';
 import { storeReceipt } from './receiptService.js';
 import billingRetryService from './billingRetryService.js';
@@ -155,13 +155,15 @@ const requireTenant = (req, res, next) => {
     next();
 };
 
-// Payments feature flag and conditional Stripe init
+// Payments feature flag and centralized Stripe client
 const PAYMENTS_ENABLED = (process.env.FEATURE_PAYMENTS || '').toString().toLowerCase() === 'true';
 let stripe = null;
-if (PAYMENTS_ENABLED && process.env.STRIPE_SECRET_KEY) {
-    stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-        apiVersion: '2023-10-16', // Use a fixed API version
-    });
+try {
+    stripe = getStripe();
+} catch (err) {
+    // getStripe returns a proxy that throws on use when not configured; keep stripe null here
+    console.warn('Stripe not configured or disabled:', err.message || err);
+    stripe = null;
 }
 
 const PB_URL = process.env.POCKETBASE_URL;

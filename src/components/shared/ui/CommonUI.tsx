@@ -1,3 +1,4 @@
+import React from 'react';
 import { Button } from './Button';
 import { Card } from './Card';
 import { Avatar } from './Avatar';
@@ -9,7 +10,8 @@ import { Skeleton, SkeletonCard } from './Skeleton';
 import { EmptyState } from './EmptyState';
 import { OwnerIcon as BaseIcon, IconName } from '../OwnerIcons';
 
-export const Icon = React.memo(BaseIcon);
+const OwnerIcon = React.memo(BaseIcon);
+export const Icon = OwnerIcon;
 
 export const Heading1: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => (
   <h1 className={`text-3xl font-black text-gray-900 dark:text-white ${className}`}>{children}</h1>
@@ -39,7 +41,7 @@ export {
   SkeletonCard,
   EmptyState,
   Icon,
-  Icon as OwnerIcon
+  OwnerIcon
 };
 
 export type { IconName };

@@ -21,6 +21,10 @@ import type {
     AuditLogChanges
 } from './settings';
 
+// Re-export common and service types for eliminating `any`
+export * from './common';
+export * from './services';
+
 // Re-export domain-specific types
 export * from './billing';
 export * from './ssl';

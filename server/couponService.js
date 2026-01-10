@@ -3,9 +3,9 @@
  * Handles promotional codes, discounts, and usage tracking
  */
 
-import Stripe from 'stripe';
+import { getStripe } from './stripeClient.js';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const stripe = getStripe();
 
 class CouponService {
     /**

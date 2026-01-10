@@ -3,11 +3,12 @@
  * Flexible report generation with customizable columns, filters, and aggregations
  */
 
-import Stripe from 'stripe';
 import PDFDocument from 'pdfkit';
 import ExcelJS from 'exceljs';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+import { getStripe } from './stripeClient.js';
+
+const stripe = getStripe();
 
 class ReportBuilderService {
     /**

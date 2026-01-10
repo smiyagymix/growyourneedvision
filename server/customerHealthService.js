@@ -1,8 +1,9 @@
-import Stripe from 'stripe';
 import PocketBase from 'pocketbase';
 import cacheService, { CacheKeys, CacheTTL } from './cacheService.js';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'demo-key');
+import { getStripe } from './stripeClient.js';
+
+const stripe = getStripe();
 const pb = new PocketBase(process.env.POCKETBASE_URL || 'http://127.0.0.1:8090');
 
 /**

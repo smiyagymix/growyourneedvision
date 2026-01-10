@@ -39,7 +39,6 @@ const initialState: BillingState = {
  * PlatformBilling Component
  * Manages billing operations including invoices, payment gateways, and subscription plans
  * Implements full type safety with Zod validation and error handling
- * No any/unknown types - all data validated before use
  */
 export const PlatformBilling: React.FC<PlatformBillingProps> = ({ activeSubNav = 'Plans' }) => {
   const [state, setState] = useState<BillingState>(initialState);

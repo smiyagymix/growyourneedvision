@@ -25,14 +25,21 @@ class SchedulerService {
         console.log('🕒 Starting automated scheduler...');
         this.isRunning = true;
 
-        // Schedule trial reminders - every 6 hours
-        this.scheduleJob('trial-reminders', () => this.runTrialReminders(), 6 * 60 * 60 * 1000);
+        // Schedule payment-related jobs only if payments feature enabled
+        const paymentsEnabled = (process.env.FEATURE_PAYMENTS || '').toString().toLowerCase() === 'true';
+        if (paymentsEnabled) {
+            // Schedule trial reminders - every 6 hours
+            this.scheduleJob('trial-reminders', () => this.runTrialReminders(), 6 * 60 * 60 * 1000);
+
+            // Schedule trial expiration processing - every hour
+            this.scheduleJob('trial-expirations', () => this.runTrialExpirations(), 60 * 60 * 1000);
+        } else {
+            console.log('⚠️ Payments disabled; skipping payment-related scheduled jobs (trial reminders/expirations)');
+        }
 
         // Schedule churn monitoring - daily at midnight
         this.scheduleDaily('churn-monitoring', () => this.runChurnMonitoring(), 0, 0);
 
-        // Schedule trial expiration processing - every hour
-        this.scheduleJob('trial-expirations', () => this.runTrialExpirations(), 60 * 60 * 1000);
 
         // Schedule weekly performance report - Sunday at 9 AM
         this.scheduleWeekly('weekly-report', () => this.generateWeeklyReport(), 0, 9, 0);
@@ -261,7 +268,8 @@ class SchedulerService {
         try {
             console.log('📧 Running trial reminder notifications...');
             const result = await trialManagementService.sendTrialReminders();
-            console.log(`  ✓ Sent ${result.reminders.length} trial reminders`);
+            // trialManagementService returns { remindersSent, trialsChecked }
+            console.log(`  ✓ Sent ${result.remindersSent || 0} trial reminders`);
             return result;
         } catch (error) {
             console.error('  ✗ Error sending trial reminders:', error);
@@ -316,9 +324,9 @@ class SchedulerService {
         try {
             console.log('⏰ Processing trial expirations...');
             const result = await trialManagementService.processTrialExpirations();
-            console.log(`  ✓ Processed ${result.converted + result.canceled} trial expirations`);
-            console.log(`    - Converted: ${result.converted}`);
-            console.log(`    - Canceled: ${result.canceled}`);
+            // processTrialExpirations returns { processed, total }
+            console.log(`  ✓ Processed ${result.processed || 0} trial expirations`);
+            console.log(`    - Total checked: ${result.total || 0}`);
             return result;
         } catch (error) {
             console.error('  ✗ Error processing trial expirations:', error);

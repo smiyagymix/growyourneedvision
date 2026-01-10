@@ -4,10 +4,11 @@
  * with configurable retry schedules and dunning management
  */
 
-import Stripe from 'stripe';
 import { logAudit } from './auditLogger.js';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+import { getStripe } from './stripeClient.js';
+
+const stripe = getStripe();
 
 /**
  * Retry configuration with exponential backoff

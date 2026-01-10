@@ -1,17 +1,23 @@
+import { ValidationError, ZodIssue } from '../types/common';
+
 export const isValidEmail = (email: string): boolean => {
   const re = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
   return re.test(email);
 };
 
 // Extract validation errors from Zod error
-export const extractZodErrors = (error: any): Record<string, string> => {
-  const errors: Record<string, string> = {};
-  if (error?.issues) {
-    error.issues.forEach((issue: any) => {
-      const path = issue.path.join('.');
-      errors[path] = issue.message;
-    });
-  }
+export const extractZodErrors = (error: ZodIssue[] | { issues: ZodIssue[] } | unknown): ValidationError => {
+  const errors: ValidationError = {};
+  
+  const issues = Array.isArray(error) ? error : 
+                (error && typeof error === 'object' && 'issues' in error) ? (error as { issues: ZodIssue[] }).issues :
+                [];
+  
+  issues.forEach((issue: ZodIssue) => {
+    const path = issue.path.join('.');
+    errors[path] = issue.message;
+  });
+  
   return errors;
 };
 

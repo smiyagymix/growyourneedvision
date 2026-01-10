@@ -10,7 +10,21 @@ class KnowledgeBase:
         """
         Initialize the Knowledge Base with ChromaDB.
         """
-        self.client = chromadb.PersistentClient(path=persist_directory)
+        try:
+            self.client = chromadb.PersistentClient(path=persist_directory)
+        except Exception as e:
+            # If persistent DB is corrupted (sqlite malformed) fall back to ephemeral in-memory client
+            # and surface a clear warning so ops can repair the persistent store offline.
+            print(f"⚠️  Warning: Failed to open ChromaDB persistent store at {persist_directory}: {e}")
+            print("⚠️  Falling back to in-memory ChromaDB client. Data will NOT persist across restarts.")
+            try:
+                self.client = chromadb.Client()
+                self._ephemeral = True
+            except Exception as e2:
+                print(f"❌ Failed to initialize in-memory ChromaDB client: {e2}")
+                raise
+        else:
+            self._ephemeral = False
         
         # Use a local, efficient embedding model (runs on CPU/GPU, no API costs)
         self.embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(

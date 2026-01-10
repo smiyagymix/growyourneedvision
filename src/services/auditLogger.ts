@@ -6,6 +6,7 @@
  */
 
 import pb from '../lib/pocketbase';
+import { Metadata } from '../types/common';
 
 export interface AuditLogEntry {
     action: string;
@@ -13,11 +14,21 @@ export interface AuditLogEntry {
     user_email?: string;
     resource_type: string;
     resource_id?: string;
-    changes?: Record<string, any>;
+    changes?: Record<string, { before?: unknown; after?: unknown }>;
     ip_address?: string;
     user_agent?: string;
     severity: 'info' | 'warning' | 'critical';
-    metadata?: Record<string, any>;
+    metadata?: Metadata;
+}
+
+// Type guard to validate audit log record from PocketBase
+function isAuditLogEntry(record: unknown): record is AuditLogEntry {
+    if (typeof record !== 'object' || record === null) return false;
+    const r = record as Record<string, unknown>;
+    return typeof r.action === 'string' && 
+           typeof r.user_id === 'string' && 
+           typeof r.resource_type === 'string' &&
+           (r.severity === 'info' || r.severity === 'warning' || r.severity === 'critical');
 }
 
 class AuditLogger {
@@ -80,7 +91,7 @@ class AuditLogger {
     /**
      * Log tenant update
      */
-    async logTenantUpdate(tenantId: string, changes: Record<string, any>): Promise<void> {
+    async logTenantUpdate(tenantId: string, changes: Record<string, { before?: unknown; after?: unknown }>): Promise<void> {
         await this.log({
             action: 'tenant.update',
             resource_type: 'tenant',
@@ -108,14 +119,14 @@ class AuditLogger {
     /**
      * Log settings change
      */
-    async logSettingsChange(settingKey: string, oldValue: any, newValue: any): Promise<void> {
+    async logSettingsChange(settingKey: string, oldValue: unknown, newValue: unknown): Promise<void> {
         await this.log({
             action: 'settings.update',
             resource_type: 'system_setting',
             resource_id: settingKey,
             changes: {
-                old_value: oldValue,
-                new_value: newValue
+                old_value: { before: oldValue },
+                new_value: { after: newValue }
             },
             severity: 'warning'
         });
@@ -130,7 +141,7 @@ class AuditLogger {
             resource_type: 'feature_flag',
             resource_id: flagName,
             changes: {
-                enabled: enabled
+                enabled: { after: enabled }
             },
             severity: 'warning',
             metadata: {
@@ -212,29 +223,43 @@ class AuditLogger {
     /**
      * Send critical logs to external monitoring
      */
-    private sendToMonitoring(logEntry: any): void {
+    private sendToMonitoring(logEntry: AuditLogEntry): void {
         // Integration with Sentry or other monitoring service
-        if (typeof window !== 'undefined' && (window as any).Sentry) {
-            (window as any).Sentry.captureMessage(
-                `Critical Audit Log: ${logEntry.action}`,
-                {
-                    level: 'warning',
-                    extra: logEntry
+        try {
+            if (typeof window !== 'undefined') {
+                const Sentry = (window as any)['Sentry'];
+                if (Sentry && typeof Sentry.captureMessage === 'function') {
+                    Sentry.captureMessage(
+                        `Critical Audit Log: ${logEntry.action}`,
+                        {
+                            level: 'warning',
+                            extra: logEntry
+                        }
+                    );
                 }
-            );
+            }
+        } catch (error) {
+            // Silently fail if Sentry integration unavailable
+            console.debug('Failed to send to monitoring', error);
         }
     }
 
     /**
      * Query audit logs for a specific resource
      */
-    async getLogsForResource(resourceType: string, resourceId: string, limit = 50): Promise<any[]> {
+    async getLogsForResource(resourceType: string, resourceId: string, limit = 50): Promise<AuditLogEntry[]> {
         try {
             const logs = await pb.collection('audit_logs').getList(1, limit, {
                 filter: `resource_type = "${resourceType}" && resource_id = "${resourceId}"`,
                 sort: '-created'
             });
-            return logs.items;
+            const filtered: AuditLogEntry[] = [];
+            (logs.items || []).forEach(item => {
+                if (isAuditLogEntry(item)) {
+                    filtered.push(item);
+                }
+            });
+            return filtered;
         } catch (error) {
             console.error('[Audit Log Query Failed]', error);
             return [];
@@ -244,13 +269,19 @@ class AuditLogger {
     /**
      * Query audit logs for a specific user
      */
-    async getLogsForUser(userId: string, limit = 100): Promise<any[]> {
+    async getLogsForUser(userId: string, limit = 100): Promise<AuditLogEntry[]> {
         try {
             const logs = await pb.collection('audit_logs').getList(1, limit, {
                 filter: `user_id = "${userId}"`,
                 sort: '-created'
             });
-            return logs.items;
+            const filtered: AuditLogEntry[] = [];
+            (logs.items || []).forEach(item => {
+                if (isAuditLogEntry(item)) {
+                    filtered.push(item);
+                }
+            });
+            return filtered;
         } catch (error) {
             console.error('[Audit Log Query Failed]', error);
             return [];
@@ -260,13 +291,19 @@ class AuditLogger {
     /**
      * Get recent critical actions
      */
-    async getCriticalActions(limit = 20): Promise<any[]> {
+    async getCriticalActions(limit = 20): Promise<AuditLogEntry[]> {
         try {
             const logs = await pb.collection('audit_logs').getList(1, limit, {
                 filter: 'severity = "critical"',
                 sort: '-created'
             });
-            return logs.items;
+            const filtered: AuditLogEntry[] = [];
+            (logs.items || []).forEach(item => {
+                if (isAuditLogEntry(item)) {
+                    filtered.push(item);
+                }
+            });
+            return filtered;
         } catch (error) {
             console.error('[Audit Log Query Failed]', error);
             return [];
@@ -280,11 +317,11 @@ export const auditLogger = new AuditLogger();
 // Export helper functions for common use cases
 export const auditLog = {
     // Generic log method for flexible audit logging
-    log: (action: string, metadata: Record<string, any> = {}, severity: 'info' | 'warning' | 'critical' = 'info') =>
+    log: (action: string, metadata: Metadata = {}, severity: 'info' | 'warning' | 'critical' = 'info') =>
         auditLogger.log({
             action,
-            resource_type: metadata.resource_type || 'system',
-            resource_id: metadata.resource_id,
+            resource_type: String(metadata.resource_type || 'system'),
+            resource_id: metadata.resource_id ? String(metadata.resource_id) : undefined,
             severity,
             metadata
         }),
@@ -292,13 +329,13 @@ export const auditLog = {
     tenantCreate: (tenantId: string, tenantName: string, tenantType: string) =>
         auditLogger.logTenantCreate(tenantId, tenantName, tenantType),
 
-    tenantUpdate: (tenantId: string, changes: Record<string, any>) =>
+    tenantUpdate: (tenantId: string, changes: Record<string, { before?: unknown; after?: unknown }>) =>
         auditLogger.logTenantUpdate(tenantId, changes),
 
     tenantDelete: (tenantId: string, tenantName: string) =>
         auditLogger.logTenantDelete(tenantId, tenantName),
 
-    settingsChange: (settingKey: string, oldValue: any, newValue: any) =>
+    settingsChange: (settingKey: string, oldValue: unknown, newValue: unknown) =>
         auditLogger.logSettingsChange(settingKey, oldValue, newValue),
 
     featureFlagChange: (flagName: string, enabled: boolean) =>
