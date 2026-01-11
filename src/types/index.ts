@@ -9,11 +9,10 @@
  */
 
 import { RecordModel } from 'pocketbase';
-import type { 
+import type {
     TenantSettings,
     TransactionMetadata,
     PluginConfig,
-    WebhookPayload,
     ComplianceMetadata,
     SettingValue,
     IntegrationConfig,
@@ -26,8 +25,7 @@ export * from './common';
 export * from './services';
 
 // Re-export domain-specific types
-export * from './billing';
-export * from './ssl';
+
 export * from './settings';
 export * from './payment';
 export * from './gamification';

@@ -1,7 +1,8 @@
 import pb from '../lib/pocketbase';
 import { RecordModel, ListResult } from 'pocketbase';
 import { tenantService, Tenant } from './tenantService';
-import { billingService, Invoice } from './billingService';
+import { billingService } from './billingService';
+import { Invoice } from '../validation/billingSchemas';
 import { isMockEnv, withMockFallback } from '../utils/mockData';
 
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
@@ -177,7 +178,7 @@ class OwnerService {
                 const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().replace('T', ' ');
 
                 const recentInvoices = await pb.collection('invoices').getFullList<Invoice>({
-                    filter: `status = "Paid" && paid_at >= "${thirtyDaysAgoStr}"`,
+                    filter: `status = "Paid" && paid_date >= "${thirtyDaysAgoStr}"`,
                     requestKey: null
                 });
                 mrrValue = recentInvoices.reduce((sum, inv) => sum + (inv.amount || 0), 0);
@@ -211,7 +212,7 @@ class OwnerService {
                 const sixMonthsAgoStr = sixMonthsAgo.toISOString().replace('T', ' ');
 
                 const historyInvoices = await pb.collection('invoices').getFullList<Invoice>({
-                    filter: `status = "Paid" && paid_at >= "${sixMonthsAgoStr}"`,
+                    filter: `status = "Paid" && paid_date >= "${sixMonthsAgoStr}"`,
                     requestKey: null
                 });
 
@@ -228,7 +229,7 @@ class OwnerService {
 
                     const monthlyRevenue = historyInvoices
                         .filter(inv => {
-                            const invDate = new Date(inv.paid_at || inv.created);
+                            const invDate = new Date(inv.paid_date || inv.created || '');
                             return invDate >= monthStart && invDate <= monthEnd;
                         })
                         .reduce((sum, inv) => sum + (inv.amount || 0), 0);

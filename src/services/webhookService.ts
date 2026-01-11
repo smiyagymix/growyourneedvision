@@ -111,7 +111,11 @@ const MOCK_DELIVERIES: WebhookDelivery[] = [
         updated: new Date().toISOString(),
         webhook: 'webhook-1',
         event: 'user.created',
-        payload: { userId: 'user-123', email: 'test@example.com' },
+        payload: {
+            event: 'user.created',
+            timestamp: new Date().toISOString(),
+            data: { id: 'mock-evt-1', type: 'user', userId: 'user-123', email: 'test@example.com' }
+        },
         response_code: 200,
         response_body: '{"success": true}',
         success: true,
@@ -148,14 +152,11 @@ class WebhookService {
         }
 
         try {
-            const result = await this.webhookService.getFullList({
+            const records = await this.webhookService.getFullList({
                 sort: '-created',
                 requestKey: null
-            });
-            if (result.success) {
-                return Ok(result.data);
-            }
-            return result;
+            }) as Webhook[];
+            return Ok(records);
         } catch (error) {
             if (error instanceof AppError) {
                 return Err(error);
@@ -178,11 +179,8 @@ class WebhookService {
         }
 
         try {
-            const result = await this.webhookService.getOne(id);
-            if (result.success) {
-                return Some(result.data);
-            }
-            return None();
+            const record = await this.webhookService.getOne(id) as Webhook;
+            return Some(record);
         } catch (error) {
             console.error(`Failed to fetch webhook ${id}:`, error);
             return None();
@@ -217,23 +215,20 @@ class WebhookService {
         }
 
         try {
-            const result = await this.webhookService.create({
+            const record = await this.webhookService.create({
                 ...data,
                 secret_key: secret,
                 success_rate: 100,
                 status: data.status || 'active'
-            } as Partial<Webhook>);
+            } as Partial<Webhook>) as Webhook;
 
-            if (result.success) {
-                await auditLog.log('webhook.create', {
-                    webhook_id: result.data.id,
-                    name: data.name,
-                    url: data.url,
-                    events: data.events
-                }, 'info');
-                return Ok(result.data);
-            }
-            return result;
+            await auditLog.log('webhook.create', {
+                webhook_id: record.id,
+                name: data.name,
+                url: data.url,
+                events: data.events
+            }, 'info');
+            return Ok(record);
         } catch (error) {
             if (error instanceof AppError) {
                 return Err(error);
@@ -264,12 +259,9 @@ class WebhookService {
         }
 
         try {
-            const result = await this.webhookService.update(id, data as Partial<Webhook>);
-            if (result.success) {
-                await auditLog.log('webhook.update', { webhook_id: id, changes: Object.keys(data) }, 'info');
-                return Ok(result.data);
-            }
-            return result;
+            const record = await this.webhookService.update(id, data as Partial<Webhook>) as Webhook;
+            await auditLog.log('webhook.update', { webhook_id: id, changes: Object.keys(data) }, 'info');
+            return Ok(record);
         } catch (error) {
             if (error instanceof AppError) {
                 return Err(error);
@@ -296,12 +288,9 @@ class WebhookService {
         }
 
         try {
-            const result = await this.webhookService.delete(id);
-            if (result.success) {
-                await auditLog.log('webhook.delete', { webhook_id: id }, 'warning');
-                return Ok(true);
-            }
-            return result;
+            await this.webhookService.delete(id);
+            await auditLog.log('webhook.delete', { webhook_id: id }, 'warning');
+            return Ok(true);
         } catch (error) {
             if (error instanceof AppError) {
                 return Err(error);
@@ -319,7 +308,7 @@ class WebhookService {
      */
     async test(id: string): Promise<Result<{ responseCode: number }, AppError>> {
         const webhookOption = await this.getById(id);
-        if (!webhookOption.some) {
+        if (!webhookOption.hasValue) {
             return Err(new AppError('Webhook not found', 'NOT_FOUND', 404));
         }
         const webhook = webhookOption.value;
@@ -333,7 +322,7 @@ class WebhookService {
             const testPayload: WebhookPayload = {
                 event: 'webhook.test',
                 timestamp: new Date().toISOString(),
-                data: { message: 'This is a test webhook delivery', type: 'test' }
+                data: { id: 'test-event-1', message: 'This is a test webhook delivery', type: 'test' }
             };
 
             const response = await fetch(webhook.url, {
@@ -379,7 +368,7 @@ class WebhookService {
      */
     async updateStatus(id: string, status: Webhook['status']): Promise<Result<Webhook, AppError>> {
         const result = await this.update(id, { status });
-        if (result.success) {
+        if (result.ok) {
             await auditLog.log('webhook.status_change', { webhook_id: id, status }, 'info');
         }
         return result;
@@ -424,11 +413,11 @@ class WebhookService {
      */
     async trigger(event: string, payload: WebhookPayload): Promise<Result<void, AppError>> {
         const webhooksResult = await this.getAll();
-        if (!webhooksResult.success) {
+        if (!webhooksResult.ok) {
             return webhooksResult;
         }
 
-        const activeWebhooks = webhooksResult.data.filter(w =>
+        const activeWebhooks = webhooksResult.value.filter(w =>
             w.status === 'active' && w.events.includes(event)
         );
 
@@ -486,7 +475,7 @@ class WebhookService {
                 duration_ms: duration,
                 attempt
             });
-            if (!logResult.success) {
+            if (!logResult.ok) {
                 console.error('Failed to log delivery:', logResult.error);
             }
 
@@ -510,7 +499,7 @@ class WebhookService {
                 attempt,
                 response_body: error instanceof Error ? error.message : 'Unknown error'
             });
-            if (!logResult.success) {
+            if (!logResult.ok) {
                 console.error('Failed to log delivery:', logResult.error);
             }
 
@@ -549,11 +538,8 @@ class WebhookService {
         }
 
         try {
-            const result = await this.deliveryService.create(data as Partial<WebhookDelivery>);
-            if (result.success) {
-                return Ok(undefined);
-            }
-            return Err(result.error);
+            await this.deliveryService.create(data as Partial<WebhookDelivery>);
+            return Ok(undefined);
         } catch (error) {
             if (error instanceof AppError) {
                 return Err(error);
@@ -585,14 +571,16 @@ class WebhookService {
         }
 
         try {
-            const webhook = await this.getById(id);
-            if (!webhook) return;
+            const webhookOption = await this.getById(id);
+            if (!webhookOption.hasValue) return;
+
+            const webhook = webhookOption.value;
 
             const newSuccessRate = success
                 ? Math.min(100, webhook.success_rate + 0.1)
                 : Math.max(0, webhook.success_rate - 1);
 
-            await pb.collection(this.collection).update(id, {
+            await this.pb.collection(this.collection).update(id, {
                 last_triggered: new Date().toISOString(),
                 success_rate: newSuccessRate,
                 status: newSuccessRate < 50 ? 'failed' : webhook.status
@@ -620,7 +608,7 @@ class WebhookService {
         }
 
         try {
-            const result = await pb.collection(this.deliveriesCollection).getList<WebhookDelivery>(
+            const result = await this.pb.collection(this.deliveriesCollection).getList<WebhookDelivery>(
                 page,
                 perPage,
                 {
@@ -650,14 +638,24 @@ class WebhookService {
         failed: number;
         averageSuccessRate: number;
     }> {
-        const webhooks = await this.getAll();
+        const result = await this.getAll();
+        if (!result.ok) {
+            return {
+                total: 0,
+                active: 0,
+                paused: 0,
+                failed: 0,
+                averageSuccessRate: 0
+            };
+        }
+        const webhooks = result.value;
         return {
             total: webhooks.length,
             active: webhooks.filter(w => w.status === 'active').length,
             paused: webhooks.filter(w => w.status === 'paused').length,
             failed: webhooks.filter(w => w.status === 'failed').length,
             averageSuccessRate: webhooks.length > 0
-                ? webhooks.reduce((sum, w) => sum + w.success_rate, 0) / webhooks.length
+                ? webhooks.reduce((sum: number, w: Webhook) => sum + w.success_rate, 0) / webhooks.length
                 : 0
         };
     }

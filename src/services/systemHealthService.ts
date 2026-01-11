@@ -120,11 +120,8 @@ class SystemHealthService {
             const result = await this.metricsService.getFullList({
                 sort: 'service_name',
                 requestKey: null
-            });
-            if (result.success) {
-                return Ok(result.data);
-            }
-            return result;
+            }) as HealthMetric[];
+            return Ok(result);
         } catch (error) {
             if (error instanceof AppError) {
                 return Err(error);
@@ -147,11 +144,11 @@ class SystemHealthService {
 
         try {
             const allMetricsResult = await this.getAllMetrics();
-            if (!allMetricsResult.success) {
+            if (!allMetricsResult.ok) {
                 return allMetricsResult;
             }
 
-            const allMetrics = allMetricsResult.data;
+            const allMetrics = allMetricsResult.value;
             const latestByService = new Map<string, HealthMetric>();
 
             allMetrics.forEach(metric => {
@@ -188,10 +185,8 @@ class SystemHealthService {
                 sort: '-last_check',
                 requestKey: null
             });
-            if (result.success) {
-                return Ok(result.data.items);
-            }
-            return result;
+            // Result from getList has items property directly
+            return Ok((result as any).items as HealthMetric[]);
         } catch (error) {
             if (error instanceof AppError) {
                 return Err(error);
@@ -228,11 +223,8 @@ class SystemHealthService {
         }
 
         try {
-            const result = await this.metricsService.create(data as Partial<HealthMetric>);
-            if (result.success) {
-                return Ok(result.data);
-            }
-            return result;
+            const result = await this.metricsService.create(data as Partial<HealthMetric>) as HealthMetric;
+            return Ok(result);
         } catch (error) {
             if (error instanceof AppError) {
                 return Err(error);
@@ -296,7 +288,7 @@ class SystemHealthService {
             last_check: new Date().toISOString(),
             error_message: errorMessage
         });
-        if (!recordResult.success) {
+        if (!recordResult.ok) {
             console.error('Failed to record metric:', recordResult.error);
         }
 
@@ -314,7 +306,7 @@ class SystemHealthService {
      */
     async checkAllServices(): Promise<HealthCheckResult[]> {
         const results: HealthCheckResult[] = [];
-        
+
         for (const service of this.services) {
             const result = await this.checkService(service);
             results.push(result);
@@ -332,7 +324,7 @@ class SystemHealthService {
         }
 
         console.log(`Starting health monitoring with ${intervalMs}ms interval`);
-        
+
         // Initial check
         this.checkAllServices();
 
@@ -366,10 +358,10 @@ class SystemHealthService {
         critical_down: boolean;
     }, AppError>> {
         const metricsResult = await this.getLatestMetrics();
-        if (!metricsResult.success) {
+        if (!metricsResult.ok) {
             return metricsResult;
         }
-        const metrics = metricsResult.data;
+        const metrics = metricsResult.value;
         const healthyCount = metrics.filter(m => m.status === 'healthy').length;
         const degradedCount = metrics.filter(m => m.status === 'degraded').length;
         const downCount = metrics.filter(m => m.status === 'down').length;
@@ -377,7 +369,7 @@ class SystemHealthService {
 
         // Check if any critical service is down
         const criticalServices = this.services.filter(s => s.critical).map(s => s.name);
-        const criticalDown = metrics.some(m => 
+        const criticalDown = metrics.some(m =>
             m.status === 'down' && criticalServices.includes(m.service_name)
         );
 
@@ -386,8 +378,8 @@ class SystemHealthService {
 
         if (criticalDown || downCount > 0) {
             status = 'down';
-            message = criticalDown 
-                ? 'Critical Service(s) Down' 
+            message = criticalDown
+                ? 'Critical Service(s) Down'
                 : `${downCount} Service(s) Down`;
         } else if (degradedCount > 0) {
             status = 'degraded';
@@ -415,22 +407,22 @@ class SystemHealthService {
         last_incident?: string;
     }, AppError>> {
         const metricsResult = await this.getByService(serviceName, days * 24); // Assuming hourly checks
-        if (!metricsResult.success) {
+        if (!metricsResult.ok) {
             return metricsResult;
         }
-        const metrics = metricsResult.data;
-        
+        const metrics = metricsResult.value;
+
         if (metrics.length === 0) {
-            return {
+            return Ok({
                 uptime_percentage: 100,
                 avg_response_time: 0,
                 incidents: 0
-            };
+            });
         }
 
         const healthyCount = metrics.filter(m => m.status === 'healthy').length;
         const uptimePercentage = (healthyCount / metrics.length) * 100;
-        
+
         const avgResponseTime = metrics
             .filter(m => m.response_time_ms !== undefined)
             .reduce((sum, m) => sum + (m.response_time_ms || 0), 0) / metrics.length;
@@ -463,17 +455,17 @@ class SystemHealthService {
         history: Map<string, number[]>;
     }, AppError>> {
         const overallResult = await this.getOverallHealth();
-        if (!overallResult.success) {
+        if (!overallResult.ok) {
             return overallResult;
         }
-        const overall = overallResult.data;
+        const overall = overallResult.value;
 
         const latestMetricsResult = await this.getLatestMetrics();
-        if (!latestMetricsResult.success) {
+        if (!latestMetricsResult.ok) {
             return latestMetricsResult;
         }
-        const latestMetrics = latestMetricsResult.data;
-        
+        const latestMetrics = latestMetricsResult.value;
+
         const services = latestMetrics.map(m => ({
             ...m,
             config: this.services.find(s => s.name === m.service_name)
@@ -483,10 +475,10 @@ class SystemHealthService {
         const history = new Map<string, number[]>();
         for (const service of this.services) {
             const serviceMetricsResult = await this.getByService(service.name, 24);
-            if (serviceMetricsResult.success) {
+            if (serviceMetricsResult.ok) {
                 history.set(
-                    service.name, 
-                    serviceMetricsResult.data.map(m => m.response_time_ms || 0).reverse()
+                    service.name,
+                    serviceMetricsResult.value.map(m => m.response_time_ms || 0).reverse()
                 );
             }
         }
@@ -507,7 +499,7 @@ class SystemHealthService {
 
         // Integrate with monitoring and notification system
         console.error(`[INCIDENT] ${serviceName}: ${status.toUpperCase()} - ${message}`);
-        
+
         try {
             // Send alert via monitoring service
             const { monitoringService } = await import('./monitoringService');
@@ -537,21 +529,20 @@ class SystemHealthService {
         try {
             const cutoffDate = new Date();
             cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
-            
+
             const oldMetricsResult = await this.metricsService.getFullList({
                 filter: `created < "${cutoffDate.toISOString()}"`,
                 requestKey: null
             });
-            if (!oldMetricsResult.success) {
-                return 0;
-            }
-            const oldMetrics = oldMetricsResult.data;
+            const oldMetrics = (oldMetricsResult as any) as HealthMetric[];
 
             let deletedCount = 0;
             for (const metric of oldMetrics) {
-                const deleteResult = await this.metricsService.delete(metric.id);
-                if (deleteResult.success) {
+                try {
+                    await this.metricsService.delete(metric.id);
                     deletedCount++;
+                } catch (err) {
+                    console.error(`Failed to delete metric ${metric.id}`, err);
                 }
             }
 

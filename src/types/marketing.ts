@@ -55,7 +55,7 @@ export interface AudienceCriteria {
         engagementScore?: number;
         [key: string]: string | number | boolean | undefined;
     };
-    [key: string]: string | number | boolean | string[] | Record<string, string | number | boolean> | undefined;
+    [key: string]: any;
 }
 
 export interface CustomAttributes {
@@ -79,8 +79,8 @@ export interface JourneyStepConfig {
 
 export interface CanvasData {
     nodes?: Array<{ id: string; type: string; position: { x: number; y: number }; data: Record<string, string | number | boolean> }>;
-    edges?: Array<{ id: string; source: string; target: string; [key: string]: string | number | boolean }>;
-    [key: string]: string | number | boolean | Array<Record<string, string | number | boolean>> | undefined;
+    edges?: Array<{ id: string; source: string; target: string;[key: string]: string | number | boolean }>;
+    [key: string]: any;
 }
 
 export interface ROICampaignData {

@@ -4,13 +4,18 @@
  */
 
 import { pocketBaseClient } from '../lib/pocketbase';
-import { createTypedCollection } from '../lib/pocketbase-types';
 import { isMockEnv } from '../utils/mockData';
 import { Result, Ok, Err } from '../lib/types';
 import { AppError } from './errorHandler';
+import { RecordModel } from 'pocketbase';
+
+// Inline helper to avoid module resolution issues
+function createTypedCollection<T extends RecordModel>(collectionName: string) {
+    return pocketBaseClient.getRawClient().collection<T>(collectionName);
+}
 import { UserExportData } from '../types/userData';
 
-export interface GDPRExportData {
+export interface GDPRExportData extends RecordModel {
     exportId: string;
     userId: string;
     requestedAt: string;
@@ -38,20 +43,14 @@ export async function requestGDPRExport(userId: string, tenantId?: string): Prom
     try {
         const pb = pocketBaseClient.getRawClient();
         const exportService = createTypedCollection<GDPRExportData>(pb, 'gdpr_export_requests');
-        
+
         // Create export request record
-        const createResult = await exportService.create({
+        const exportRequest = await exportService.create({
             userId,
             tenantId: tenantId || undefined,
             status: 'pending',
             requestedAt: new Date().toISOString()
         } as Partial<GDPRExportData>);
-
-        if (!createResult.success) {
-            return createResult;
-        }
-
-        const exportRequest = createResult.data;
 
         // Start async export process (in production, this would be a background job)
         processGDPRExport(exportRequest.id, userId, tenantId).catch(error => {
@@ -61,7 +60,7 @@ export async function requestGDPRExport(userId: string, tenantId?: string): Prom
         return Ok({
             exportId: exportRequest.id,
             userId,
-            requestedAt: exportRequest.requestedAt,
+            requestedAt: exportRequest.created!,
             status: 'pending'
         });
     } catch (error) {
@@ -80,6 +79,7 @@ export async function requestGDPRExport(userId: string, tenantId?: string): Prom
  * Process GDPR export (background task)
  */
 async function processGDPRExport(exportId: string, userId: string, tenantId?: string): Promise<void> {
+    const pb = pocketBaseClient.getRawClient();
     try {
         // Update status to processing
         await pb.collection('gdpr_export_requests').update(exportId, {
@@ -119,8 +119,9 @@ async function processGDPRExport(exportId: string, userId: string, tenantId?: st
                 totalRecords: 0,
                 collections: [],
                 format: 'json',
-                exportedAt: new Date().toISOString()
-            }
+                exportedAt: new Date().toISOString(),
+                collectionCount: 0
+            },
             collections: {}
         };
 
@@ -132,8 +133,9 @@ async function processGDPRExport(exportId: string, userId: string, tenantId?: st
                 name: user.name,
                 email: user.email,
                 role: user.role,
-                created: user.created,
-                updated: user.updated,
+                createdAt: user.created,
+                updatedAt: user.updated,
+                verified: user.verified,
                 avatar: user.avatar,
                 tenantId: user.tenantId
             };
@@ -144,7 +146,7 @@ async function processGDPRExport(exportId: string, userId: string, tenantId?: st
         // Fetch data from each collection
         for (const collectionName of collections) {
             try {
-                const filter = tenantId 
+                const filter = tenantId
                     ? `user = "${userId}" && tenantId = "${tenantId}"`
                     : `user = "${userId}"`;
 
@@ -167,6 +169,7 @@ async function processGDPRExport(exportId: string, userId: string, tenantId?: st
                 0
             ),
             collectionCount: Object.keys(exportData.collections).length,
+            collections: Object.keys(exportData.collections),
             format: 'JSON',
             exportedAt: new Date().toISOString()
         };
@@ -188,7 +191,7 @@ async function processGDPRExport(exportId: string, userId: string, tenantId?: st
         console.log(`GDPR export completed for user ${userId}: ${exportData.metadata.totalRecords} records`);
     } catch (error) {
         console.error('Failed to process GDPR export:', error);
-        
+
         // Update status to failed
         try {
             await pb.collection('gdpr_export_requests').update(exportId, {
@@ -219,6 +222,7 @@ export async function getGDPRExportStatus(exportId: string): Promise<GDPRExportD
     }
 
     try {
+        const pb = pocketBaseClient.getRawClient();
         const exportRequest = await pb.collection('gdpr_export_requests').getOne(exportId);
 
         return {
@@ -245,6 +249,7 @@ export async function downloadGDPRExport(exportId: string): Promise<string> {
     }
 
     try {
+        const pb = pocketBaseClient.getRawClient();
         const exportRequest = await pb.collection('gdpr_export_requests').getOne(exportId);
 
         if (exportRequest.status !== 'completed') {
@@ -283,6 +288,7 @@ export async function executeRightToBeForgotten(userId: string, tenantId?: strin
     const errors: string[] = [];
 
     try {
+        const pb = pocketBaseClient.getRawClient();
         // Create deletion audit log before deleting
         await pb.collection('gdpr_deletion_requests').create({
             user: userId,
@@ -309,7 +315,7 @@ export async function executeRightToBeForgotten(userId: string, tenantId?: strin
         // Delete from each collection
         for (const collectionName of collectionsToDelete) {
             try {
-                const filter = tenantId 
+                const filter = tenantId
                     ? `user = "${userId}" && tenantId = "${tenantId}"`
                     : `user = "${userId}"`;
 
@@ -370,7 +376,7 @@ export async function executeRightToBeForgotten(userId: string, tenantId?: strin
     } catch (error) {
         console.error('Failed to execute right to be forgotten:', error);
         errors.push('Critical failure during deletion process');
-        
+
         return {
             success: false,
             deletedRecords,
@@ -388,6 +394,7 @@ export async function listGDPRExports(userId: string): Promise<GDPRExportData[]>
     }
 
     try {
+        const pb = pocketBaseClient.getRawClient();
         const requests = await pb.collection('gdpr_export_requests').getFullList({
             filter: `user = "${userId}"`,
             sort: '-created'

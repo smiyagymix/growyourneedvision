@@ -47,8 +47,8 @@ export class TwoFactorService {
    */
   static async generateQRCode(secret: string, userEmail: string, issuer: string = 'Grow Your Need'): Promise<string> {
     try {
-      const otpAuthUrl = authenticator.keyuri(userEmail, secret, issuer, 'Grow Your Need');
-      
+      const otpAuthUrl = authenticator.keyuri(userEmail, issuer, secret);
+
       return new Promise((resolve, reject) => {
         QRCode.toDataURL(otpAuthUrl, (err, url) => {
           if (err) {
@@ -72,12 +72,12 @@ export class TwoFactorService {
       const secret = this.generateTOTPSecret();
       const backupCodes = this.generateBackupCodes();
       const qrCode = await this.generateQRCode(secret, userEmail);
-      
+
       // Generate manual entry key (for users who can't scan QR)
       const manualEntryKey = secret.replace(/(.{4})/g, '$1 ').trim();
 
       console.log('✅ 2FA setup generated successfully');
-      
+
       return {
         secret,
         qrCode,
@@ -135,7 +135,7 @@ export class TwoFactorService {
       const secret = localStorage.getItem(this.TOTP_SECRET_KEY);
       const backupCodesStr = localStorage.getItem(this.BACKUP_CODES_KEY);
       const backupCodes = backupCodesStr ? JSON.parse(backupCodesStr) : [];
-      
+
       return { secret, backupCodes };
     } catch (error) {
       console.error('❌ Error retrieving temporary 2FA setup:', error);
@@ -172,7 +172,7 @@ export class TwoFactorService {
       };
 
       localStorage.setItem(`${this.TOTP_ENABLED_KEY}_${userId}`, JSON.stringify(setupData));
-      
+
       console.log('✅ 2FA enabled for user:', userId);
       return true;
     } catch (error) {
@@ -188,7 +188,7 @@ export class TwoFactorService {
     try {
       const setupDataStr = localStorage.getItem(`${this.TOTP_ENABLED_KEY}_${userId}`);
       if (!setupDataStr) return false;
-      
+
       const setupData = JSON.parse(setupDataStr);
       return setupData.enabled === true;
     } catch (error) {
@@ -204,7 +204,7 @@ export class TwoFactorService {
     try {
       const setupDataStr = localStorage.getItem(`${this.TOTP_ENABLED_KEY}_${userId}`);
       if (!setupDataStr) return null;
-      
+
       return JSON.parse(setupDataStr);
     } catch (error) {
       console.error('❌ Error retrieving 2FA setup data:', error);
@@ -219,8 +219,12 @@ export class TwoFactorService {
     try {
       // This would typically call your backend to disable 2FA
       localStorage.removeItem(`${this.TOTP_ENABLED_KEY}_${userId}`);
-      
+
       console.log('✅ 2FA disabled for user:', userId);
       return true;
     } catch (error) {
-      console.error('❌ Error disabling 2FA:', error
+      console.error('❌ Error disabling 2FA:', error);
+      return false;
+    }
+  }
+}

@@ -16,7 +16,7 @@ export interface ExportMetadata {
         status?: string[];
         [key: string]: string | string[] | { start: string; end: string } | undefined;
     };
-    [key: string]: string | string[] | { start: string; end: string } | undefined;
+    [key: string]: any;
 }
 
 export type ExportRow = (string | number | boolean | null)[];

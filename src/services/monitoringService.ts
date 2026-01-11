@@ -34,12 +34,12 @@ class MonitoringService {
             healthCheck: async () => {
                 const start = Date.now();
                 try {
-                    await pb.health.check();
+                    await this.pb.health.check();
                     const latency = Date.now() - start;
                     return {
                         status: latency < 100 ? 'operational' : latency < 300 ? 'degraded' : 'down',
                         latency,
-                        metadata: { version: '1.0.0', host: pb.baseUrl }
+                        metadata: { version: '1.0.0', host: this.pb.baseUrl }
                     };
                 } catch (error) {
                     return { status: 'down', latency: Date.now() - start };
@@ -51,7 +51,7 @@ class MonitoringService {
             healthCheck: async () => {
                 const start = Date.now();
                 try {
-                    await pb.collection('users').getList(1, 1, { requestKey: null });
+                    await this.pb.collection('users').getList(1, 1, { requestKey: null });
                     const latency = Date.now() - start;
                     return {
                         status: latency < 50 ? 'operational' : latency < 150 ? 'degraded' : 'down',
@@ -68,7 +68,7 @@ class MonitoringService {
             healthCheck: async () => {
                 const start = Date.now();
                 try {
-                    const isValid = pb.authStore.isValid;
+                    const isValid = this.pb.authStore.isValid;
                     const latency = Date.now() - start;
                     return {
                         status: isValid ? 'operational' : 'degraded',
@@ -85,7 +85,7 @@ class MonitoringService {
             healthCheck: async () => {
                 const start = Date.now();
                 try {
-                    await pb.collection('users').getList(1, 1, { fields: 'avatar', requestKey: null });
+                    await this.pb.collection('users').getList(1, 1, { fields: 'avatar', requestKey: null });
                     const latency = Date.now() - start;
                     return {
                         status: latency < 100 ? 'operational' : 'degraded',
@@ -104,7 +104,7 @@ class MonitoringService {
                 try {
                     const aiServiceUrl = env.get('aiServiceUrl');
                     const healthPath = env.get('aiServiceHealthPath');
-                    const response = await fetch(`${aiServiceUrl}${healthPath}`, { 
+                    const response = await fetch(`${aiServiceUrl}${healthPath}`, {
                         method: 'GET',
                         signal: AbortSignal.timeout(5000)
                     });
@@ -174,7 +174,7 @@ class MonitoringService {
                         ts: Math.floor(Date.now() / 1000),
                         metadata: data.metadata ? JSON.stringify(data.metadata) : undefined
                     }
-                ]  
+                ]
             };
 
             const webhookUrl = typeof this.slackWebhookUrl === 'string' ? this.slackWebhookUrl : '';
@@ -290,12 +290,12 @@ class MonitoringService {
     private async checkService(service: ServiceHealthCheck): Promise<void> {
         try {
             const result = await service.healthCheck();
-            
+
             await ownerService.updateServiceHealth(
                 service.name,
                 result.status,
                 result.latency,
-                result.metadata
+                result.metadata as any
             );
 
             // Create monitoring event and notify for status changes
@@ -317,7 +317,7 @@ class MonitoringService {
             }
         } catch (error) {
             console.error(`❌ Error checking ${service.name}:`, error);
-            
+
             await ownerService.updateServiceHealth(
                 service.name,
                 'down',
@@ -372,7 +372,7 @@ class MonitoringService {
 
         try {
             // Get active user count from PocketBase
-            const users = await pb.collection('users').getList(1, 1, {
+            const users = await this.pb.collection('users').getList(1, 1, {
                 filter: 'last_active >= @now(-15m)',
                 requestKey: null
             });
@@ -383,14 +383,14 @@ class MonitoringService {
                 this.services.map(s => s.healthCheck())
             );
             const latencies = services
-                .filter((r): r is PromiseFulfilledResult<{ status: string; latency: number }> => r.status === 'fulfilled')
+                .filter((r): r is PromiseFulfilledResult<{ status: 'operational' | 'degraded' | 'down'; latency: number }> => r.status === 'fulfilled')
                 .map(r => r.value.latency);
-            const avgResponseTime = latencies.length > 0 
+            const avgResponseTime = latencies.length > 0
                 ? Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length)
                 : 100;
 
             // Get rate limit stats (blocked attacks)
-            const rateLimitRecords = await pb.collection('rate_limits').getList(1, 1, {
+            const rateLimitRecords = await this.pb.collection('rate_limits').getList(1, 1, {
                 filter: 'created >= @now(-24h)',
                 requestKey: null
             });
@@ -439,7 +439,7 @@ export const monitoringService = new MonitoringService();
 // Auto-start monitoring in production
 if (!isMockEnv() && typeof window !== 'undefined') {
     monitoringService.startMonitoring();
-    
+
     window.addEventListener('beforeunload', () => {
         monitoringService.stopMonitoring();
     });

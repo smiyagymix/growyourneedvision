@@ -48,7 +48,7 @@ export interface BillingServiceResponse<T> {
 // Prevents heavy re-calculation on every page transition (5 minute TTL)
 let cachedStats: BillingStats | null = null;
 let lastStatsFetch = 0;
-const CACHE_TTL = 5 * 60 * 1000; 
+const CACHE_TTL = 5 * 60 * 1000;
 
 /**
  * Enhanced Error Mapping for Production
@@ -72,7 +72,7 @@ const handleServiceError = (error: unknown, context: string): AppError => {
 };
 
 export const billingService = {
-    
+
     // --- Invoice Management ---
 
     /**
@@ -88,13 +88,13 @@ export const billingService = {
     }): Promise<BillingServiceResponse<ExpandedInvoice>> => {
         try {
             const { page = 1, perPage = 50, tenantId, status, search } = params;
-            
+
             const filters: string[] = [];
             if (tenantId) filters.push(`tenant_id = "${tenantId}"`);
             if (status) filters.push(`status = "${status}"`);
             if (search) filters.push(`(id ~ "${search}" || period ~ "${search}")`);
 
-            const result = await retry(() => 
+            const result = await retry(() =>
                 pb.collection('invoices').getList<ExpandedInvoice>(page, perPage, {
                     filter: filters.join(' && '),
                     sort: '-created',
@@ -105,9 +105,9 @@ export const billingService = {
 
             return {
                 items: result.items,
-                total: result.totalItems,
-                page: result.page,
-                perPage: result.perPage
+                total: result.totalItems || 0,
+                page: result.page || 1,
+                perPage: result.perPage || 50
             };
         } catch (error) {
             throw handleServiceError(error, 'FETCH_INVOICES');
@@ -134,7 +134,7 @@ export const billingService = {
                 resource_type: 'invoice',
                 resource_id: record.id,
                 severity: 'info',
-                metadata: { amount: data.amount ?? 0, tenant: data.tenant_id, userId }
+                metadata: { amount: data.amount ?? 0, tenant: data.tenant_id ?? '', userId }
             }).catch(() => null);
 
             cachedStats = null; // Invalidate cache
@@ -150,17 +150,17 @@ export const billingService = {
     bulkUpdateStatus: async (ids: string[], status: Invoice['status'], userId: string): Promise<void> => {
         try {
             // PocketBase doesn't have native bulk update yet, so we use Promise.all
-            await Promise.all(ids.map(id => 
+            await Promise.all(ids.map(id =>
                 pb.collection('invoices').update(id, { status })
             ));
-            
+
             auditLogger.log({
                 action: 'billing.bulk_update',
                 resource_type: 'invoice',
                 severity: 'warning',
                 metadata: { count: ids.length, status, userId }
             }).catch(() => null);
-            
+
             cachedStats = null;
         } catch (error) {
             throw handleServiceError(error, 'BULK_UPDATE');
@@ -180,33 +180,36 @@ export const billingService = {
         }
 
         try {
-            const invoices = await pb.collection('invoices').getFullList<Invoice>({
-                fields: 'amount,status,created,paid_date'
-            });
+            const result = await pb.collection('invoices').getFullList<Invoice>();
+            const invoices: Invoice[] = result.map((item: Invoice) => ({
+                ...item,
+                paid_date: item.paid_date || null,
+                created: item.created || ''
+            }));
 
             const stats: BillingStats = invoices.reduce((acc, inv) => {
                 acc.invoice_count++;
-                
+
                 // Track Revenue
                 if (inv.status === 'paid') {
                     acc.total_revenue += inv.amount;
                     acc.paid_invoices++;
-                    
+
                     // Logic for Average Payment Time (Days)
                     if (inv.paid_date && inv.created) {
                         const days = (new Date(inv.paid_date).getTime() - new Date(inv.created).getTime()) / (1000 * 60 * 60 * 24);
-                        acc.average_payment_time = (acc.average_payment_time + days) / 2;
+                        acc.average_payment_time = acc.average_payment_time ? (acc.average_payment_time + days) / 2 : days;
                     }
-                } 
+                }
                 else if (inv.status === 'pending') {
                     acc.pending_amount += inv.amount;
                     acc.pending_invoices++;
-                } 
+                }
                 else if (inv.status === 'overdue') {
                     acc.overdue_count++;
                     acc.overdue_invoices++;
                 }
-                
+
                 return acc;
             }, {
                 total_revenue: 0,
@@ -224,7 +227,7 @@ export const billingService = {
             // Financial Metrics
             stats.mrr = stats.total_revenue / 12; // Simplified logic
             stats.arr = stats.mrr * 12;
-            stats.average_payment_time = Math.round(stats.average_payment_time);
+            stats.average_payment_time = stats.average_payment_time ? Math.round(stats.average_payment_time) : 0;
 
             cachedStats = stats;
             lastStatsFetch = now;
@@ -244,7 +247,7 @@ export const billingService = {
             const gateways = await pb.collection('payment_gateways').getFullList<PaymentGateway>({
                 sort: '-enabled',
             });
-            
+
             return gateways.filter(g => validatePaymentGateway(g).success);
         } catch (error) {
             throw handleServiceError(error, 'FETCH_GATEWAYS');
@@ -266,6 +269,48 @@ export const billingService = {
         } catch (error) {
             throw handleServiceError(error, 'STRIPE_INIT');
         }
+    },
+
+    // --- Payment Gateway Management ---
+
+    /**
+     * Toggle payment gateway enabled/disabled status
+     */
+    toggleGateway: async (gatewayId: string): Promise<any> => {
+        try {
+            const { paymentGatewayService } = await import('./paymentGatewayService');
+            return await paymentGatewayService.toggleGateway(gatewayId);
+        } catch (error) {
+            throw handleServiceError(error, 'TOGGLE_GATEWAY');
+// Before:
+return Ok({
+  exportId, userId, requestedAt, completedAt, status: 'completed', downloadUrl, expiresAt
+});
+
+// After:
+return Ok<GDPRExportData, AppError>({
+  id,
+  collectionId: 'gdpr_exports',
+  collectionName: 'gdpr_exports',
+  created,
+  updated,
+  exportId,
+  userId,
+  requestedAt,
+  completedAt,
+  status: 'completed',
+  downloadUrl,
+  expiresAt,
+});export interface GDPRExportData extends RecordModel {
+  exportId: string;
+  userId: string;
+  requestedAt: string;
+  completedAt?: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  downloadUrl?: string;
+  expiresAt?: string;
+  data?: UserExportData;
+}        }
     },
 
     // --- Subscription Management ---

@@ -40,7 +40,6 @@ export {
   Skeleton,
   SkeletonCard,
   EmptyState,
-  Icon,
   OwnerIcon
 };
 

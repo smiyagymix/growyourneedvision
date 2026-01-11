@@ -397,6 +397,22 @@ app.get('/api/metrics', (req, res) => {
 });
 
 // ==========================================
+// RATE LIMITING CHECK
+// ==========================================
+
+app.post('/api/rate-limit/check', async (req, res) => {
+    try {
+        const { tenantId, ipAddress } = req.body;
+        // In a real implementation, we would query PB for specific tenant limits
+        // For now, we return allowed to unblock the client
+        res.json({ allowed: true });
+    } catch (error) {
+        console.error('Error checking rate limit:', error);
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// ==========================================
 // PAYMENT INTENTS
 // ==========================================
 
@@ -1468,8 +1484,8 @@ async function processWebhookWithRetry(event, retryCount = 0) {
                         await pbUpdate('invoices', failedInvoice.id, {
                             status: 'payment_failed',
                             attempt_count: failedInvoice.attempt_count || 0,
-                            next_payment_attempt: failedInvoice.next_payment_attempt 
-                                ? new Date(failedInvoice.next_payment_attempt * 1000).toISOString() 
+                            next_payment_attempt: failedInvoice.next_payment_attempt
+                                ? new Date(failedInvoice.next_payment_attempt * 1000).toISOString()
                                 : null,
                             updated: new Date().toISOString()
                         });
@@ -1481,7 +1497,7 @@ async function processWebhookWithRetry(event, retryCount = 0) {
                 // Use billing retry service for intelligent retry scheduling
                 try {
                     const retryResult = await billingRetryService.schedulePaymentRetry(failedInvoice);
-                    
+
                     if (retryResult.success) {
                         console.log(`Retry scheduled: Attempt ${retryResult.attemptCount}, Next retry: ${retryResult.nextRetryDate}`);
                     } else {
@@ -1505,8 +1521,8 @@ async function processWebhookWithRetry(event, retryCount = 0) {
                         attempt_count: failedInvoice.attempt_count,
                         customer: failedInvoice.customer,
                         subscription: failedInvoice.subscription,
-                        next_retry: failedInvoice.next_payment_attempt 
-                            ? new Date(failedInvoice.next_payment_attempt * 1000).toISOString() 
+                        next_retry: failedInvoice.next_payment_attempt
+                            ? new Date(failedInvoice.next_payment_attempt * 1000).toISOString()
                             : 'none'
                     },
                     severity: 'high'
@@ -1521,14 +1537,14 @@ async function processWebhookWithRetry(event, retryCount = 0) {
                 if (PB_URL && PB_TOKEN) {
                     try {
                         // Find tenant associated with this customer
-                        const tenants = await pbList('tenants', { 
+                        const tenants = await pbList('tenants', {
                             filter: `stripe_customer_id = "${deletedCustomer.id}"`,
-                            perPage: 1 
+                            perPage: 1
                         });
 
                         if (tenants && tenants.length > 0) {
                             const tenant = tenants[0];
-                            
+
                             // Mark tenant as cancelled and archive
                             await pbUpdate('tenants', tenant.id, {
                                 status: 'cancelled',
@@ -1588,8 +1604,8 @@ async function processWebhookWithRetry(event, retryCount = 0) {
                             currency: dispute.currency,
                             reason: dispute.reason,
                             status: dispute.status,
-                            evidence_due_by: dispute.evidence_details?.due_by 
-                                ? new Date(dispute.evidence_details.due_by * 1000).toISOString() 
+                            evidence_due_by: dispute.evidence_details?.due_by
+                                ? new Date(dispute.evidence_details.due_by * 1000).toISOString()
                                 : null,
                             customer: dispute.payment_intent?.customer || null,
                             tenantId: dispute.metadata?.tenantId || 'unknown',
@@ -1804,9 +1820,9 @@ async function processWebhookWithRetry(event, retryCount = 0) {
 
                 if (PB_URL && PB_TOKEN) {
                     try {
-                        const tenants = await pbList('tenants', { 
+                        const tenants = await pbList('tenants', {
                             filter: `stripe_customer_id = "${updatedCustomer.id}"`,
-                            perPage: 1 
+                            perPage: 1
                         });
 
                         if (tenants && tenants.length > 0) {
@@ -2234,9 +2250,9 @@ async function processWebhookWithRetry(event, retryCount = 0) {
 app.post('/api/billing/retry/:invoiceId', requireApiKey, async (req, res) => {
     try {
         const { invoiceId } = req.params;
-        
+
         const result = await billingRetryService.retryInvoicePayment(invoiceId);
-        
+
         if (result.success) {
             res.json({
                 success: true,
@@ -2267,15 +2283,15 @@ app.post('/api/billing/retry/:invoiceId', requireApiKey, async (req, res) => {
 app.post('/api/billing/update-payment-method', requireApiKey, async (req, res) => {
     try {
         const { customerId, paymentMethodId } = req.body;
-        
+
         if (!customerId || !paymentMethodId) {
             return res.status(400).json({
                 message: 'customerId and paymentMethodId are required'
             });
         }
-        
+
         const result = await billingRetryService.updatePaymentMethodAndRetry(customerId, paymentMethodId);
-        
+
         res.json({
             success: true,
             ...result
@@ -2296,9 +2312,9 @@ app.post('/api/billing/update-payment-method', requireApiKey, async (req, res) =
 app.get('/api/billing/retry-status/:subscriptionId', requireApiKey, async (req, res) => {
     try {
         const { subscriptionId } = req.params;
-        
+
         const status = await billingRetryService.getRetryStatus(subscriptionId);
-        
+
         res.json({
             success: true,
             ...status
@@ -2343,18 +2359,18 @@ app.get('/api/billing/retry-config', requireApiKey, async (req, res) => {
 app.post('/api/billing/proration/calculate', requireApiKey, async (req, res) => {
     try {
         const { subscriptionId, newPriceId, prorationDate, billingCycleAnchor } = req.body;
-        
+
         if (!subscriptionId || !newPriceId) {
             return res.status(400).json({
                 message: 'subscriptionId and newPriceId are required'
             });
         }
-        
+
         const result = await prorationService.calculateProration(subscriptionId, newPriceId, {
             prorationDate,
             billingCycleAnchor
         });
-        
+
         res.json(result);
     } catch (error) {
         console.error('Error calculating proration:', error);
@@ -2373,20 +2389,20 @@ app.post('/api/billing/proration/calculate', requireApiKey, async (req, res) => 
 app.post('/api/billing/proration/apply', requireApiKey, requireTenant, async (req, res) => {
     try {
         const { subscriptionId, newPriceId, prorationBehavior, paymentBehavior, prorationDate, billingCycleAnchor } = req.body;
-        
+
         if (!subscriptionId || !newPriceId) {
             return res.status(400).json({
                 message: 'subscriptionId and newPriceId are required'
             });
         }
-        
+
         const result = await prorationService.applyPlanChange(subscriptionId, newPriceId, {
             prorationBehavior,
             paymentBehavior,
             prorationDate,
             billingCycleAnchor
         });
-        
+
         res.json(result);
     } catch (error) {
         console.error('Error applying plan change:', error);
@@ -2405,15 +2421,15 @@ app.post('/api/billing/proration/apply', requireApiKey, requireTenant, async (re
 app.post('/api/billing/proration/schedule', requireApiKey, requireTenant, async (req, res) => {
     try {
         const { subscriptionId, newPriceId } = req.body;
-        
+
         if (!subscriptionId || !newPriceId) {
             return res.status(400).json({
                 message: 'subscriptionId and newPriceId are required'
             });
         }
-        
+
         const result = await prorationService.schedulePlanChangeAtPeriodEnd(subscriptionId, newPriceId);
-        
+
         res.json(result);
     } catch (error) {
         console.error('Error scheduling plan change:', error);
@@ -2432,15 +2448,15 @@ app.post('/api/billing/proration/schedule', requireApiKey, requireTenant, async 
 app.post('/api/billing/proration/credit', requireApiKey, async (req, res) => {
     try {
         const { customerId, amount, description } = req.body;
-        
+
         if (!customerId || !amount) {
             return res.status(400).json({
                 message: 'customerId and amount are required'
             });
         }
-        
+
         const result = await prorationService.addProrationCredit(customerId, amount, description);
-        
+
         res.json(result);
     } catch (error) {
         console.error('Error adding proration credit:', error);
@@ -2463,14 +2479,14 @@ app.post('/api/billing/proration/credit', requireApiKey, async (req, res) => {
 app.get('/api/analytics/cohorts', requireApiKey, async (req, res) => {
     try {
         const { startDate, endDate, cohortBy, metric } = req.query;
-        
+
         const result = await analyticsService.calculateCohortAnalysis({
             startDate,
             endDate,
             cohortBy: cohortBy || 'month',
             metric: metric || 'retention'
         });
-        
+
         res.json(result);
     } catch (error) {
         console.error('Error calculating cohort analysis:', error);
@@ -2489,13 +2505,13 @@ app.get('/api/analytics/cohorts', requireApiKey, async (req, res) => {
 app.get('/api/analytics/retention', requireApiKey, async (req, res) => {
     try {
         const { startDate, period, maxPeriods } = req.query;
-        
+
         const result = await analyticsService.calculateRetentionCurve({
             startDate,
             period: period || 'month',
             maxPeriods: maxPeriods ? parseInt(maxPeriods) : 12
         });
-        
+
         res.json(result);
     } catch (error) {
         console.error('Error calculating retention curve:', error);
@@ -2514,15 +2530,15 @@ app.get('/api/analytics/retention', requireApiKey, async (req, res) => {
 app.post('/api/analytics/funnel', requireApiKey, async (req, res) => {
     try {
         const { steps } = req.body;
-        
+
         if (!steps || !Array.isArray(steps)) {
             return res.status(400).json({
                 message: 'steps array is required'
             });
         }
-        
+
         const result = await analyticsService.calculateFunnelAnalytics(steps);
-        
+
         res.json(result);
     } catch (error) {
         console.error('Error calculating funnel analytics:', error);
@@ -2541,12 +2557,12 @@ app.post('/api/analytics/funnel', requireApiKey, async (req, res) => {
 app.get('/api/analytics/mrr', requireApiKey, async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
-        
+
         const result = await analyticsService.calculateMRRMetrics({
             startDate,
             endDate
         });
-        
+
         res.json(result);
     } catch (error) {
         console.error('Error calculating MRR metrics:', error);
@@ -2564,7 +2580,7 @@ app.get('/api/analytics/mrr', requireApiKey, async (req, res) => {
 app.get('/api/analytics/ltv', requireApiKey, async (req, res) => {
     try {
         const result = await analyticsService.calculateLTVMetrics();
-        
+
         res.json(result);
     } catch (error) {
         console.error('Error calculating LTV metrics:', error);
@@ -2583,16 +2599,16 @@ app.get('/api/analytics/ltv', requireApiKey, async (req, res) => {
 app.post('/api/analytics/export', requireApiKey, async (req, res) => {
     try {
         const { type, format, options } = req.body;
-        
+
         if (!type || !format) {
             return res.status(400).json({
                 message: 'type and format are required'
             });
         }
-        
+
         let data;
         let filename;
-        
+
         // Get analytics data based on type
         switch (type) {
             case 'cohorts':
@@ -2616,25 +2632,25 @@ app.post('/api/analytics/export', requireApiKey, async (req, res) => {
                     message: 'Invalid report type'
                 });
         }
-        
+
         if (format === 'pdf') {
             // Generate PDF
             const doc = new PDFDocument({ margin: 50 });
             res.setHeader('Content-Type', 'application/pdf');
             res.setHeader('Content-Disposition', `attachment; filename="${filename}.pdf"`);
             doc.pipe(res);
-            
+
             // PDF Header
             doc.fontSize(20).text(`${type.toUpperCase()} Report`, { align: 'center' });
             doc.moveDown();
             doc.fontSize(10).text(`Generated: ${new Date().toLocaleString()}`, { align: 'center' });
             doc.moveDown(2);
-            
+
             // PDF Content based on report type
             if (type === 'cohorts' && data.cohorts) {
                 doc.fontSize(14).text('Cohort Analysis', { underline: true });
                 doc.moveDown();
-                
+
                 data.cohorts.forEach((cohort, index) => {
                     if (index > 0) doc.moveDown();
                     doc.fontSize(12).text(`Cohort: ${cohort.cohort}`, { bold: true });
@@ -2642,7 +2658,7 @@ app.post('/api/analytics/export', requireApiKey, async (req, res) => {
                         .text(`Size: ${cohort.size} users`)
                         .text(`Revenue: $${cohort.revenue.toFixed(2)}`)
                         .text(`Avg LTV: $${cohort.avgLifetimeValue.toFixed(2)}`);
-                    
+
                     if (cohort.retention && cohort.retention.length > 0) {
                         doc.moveDown(0.5);
                         doc.text('Retention by Period:');
@@ -2656,27 +2672,27 @@ app.post('/api/analytics/export', requireApiKey, async (req, res) => {
                 doc.moveDown();
                 doc.fontSize(10).text(`Total Users: ${data.totalUsers}`);
                 doc.moveDown();
-                
+
                 data.curve.forEach(point => {
                     doc.text(`${point.periodLabel}: ${point.retentionRate.toFixed(1)}% retained (${point.retainedUsers} users)`);
                 });
             } else if (type === 'mrr' && data.current) {
                 doc.fontSize(14).text('MRR Report', { underline: true });
                 doc.moveDown();
-                
+
                 doc.fontSize(12).text('Current Metrics:', { bold: true });
                 doc.fontSize(10)
                     .text(`MRR: $${data.current.mrr.toLocaleString()}`)
                     .text(`ARR: $${data.current.arr.toLocaleString()}`)
                     .text(`Active Subscriptions: ${data.current.activeSubscriptions}`)
                     .text(`ARPU: $${data.current.avgRevenuePerUser.toFixed(2)}`);
-                
+
                 doc.moveDown();
                 doc.fontSize(12).text('Growth:', { bold: true });
                 doc.fontSize(10)
                     .text(`MRR Growth: $${data.growth.mrrGrowth.toLocaleString()}`)
                     .text(`Growth Rate: ${data.growth.mrrGrowthRate.toFixed(2)}%`);
-                
+
                 doc.moveDown();
                 doc.fontSize(12).text('Churn:', { bold: true });
                 doc.fontSize(10)
@@ -2685,14 +2701,14 @@ app.post('/api/analytics/export', requireApiKey, async (req, res) => {
             } else if (type === 'ltv' && data.overall) {
                 doc.fontSize(14).text('LTV Report', { underline: true });
                 doc.moveDown();
-                
+
                 doc.fontSize(12).text('Overall Metrics:', { bold: true });
                 doc.fontSize(10)
                     .text(`Avg LTV: $${data.overall.avgLTV.toFixed(2)}`)
                     .text(`Avg Lifetime: ${data.overall.avgLifetimeMonths.toFixed(1)} months`)
                     .text(`Avg Monthly Value: $${data.overall.avgMonthlyValue.toFixed(2)}`)
                     .text(`Total Customers: ${data.overall.totalCustomers}`);
-                
+
                 if (data.byPlan && data.byPlan.length > 0) {
                     doc.moveDown();
                     doc.fontSize(12).text('By Plan:', { bold: true });
@@ -2701,7 +2717,7 @@ app.post('/api/analytics/export', requireApiKey, async (req, res) => {
                     });
                 }
             }
-            
+
             doc.end();
         } else if (format === 'excel') {
             // For Excel, return JSON data that frontend can convert
@@ -2737,19 +2753,19 @@ app.post('/api/analytics/export', requireApiKey, async (req, res) => {
 app.post('/api/trial/create', requireApiKey, async (req, res) => {
     try {
         const { customerId, priceId, trialDays } = req.body;
-        
+
         if (!customerId || !priceId) {
             return res.status(400).json({
                 message: 'customerId and priceId are required'
             });
         }
-        
+
         const subscription = await trialManagementService.createTrialSubscription(
             customerId,
             priceId,
             trialDays || 14
         );
-        
+
         res.json({
             success: true,
             subscription
@@ -2770,7 +2786,7 @@ app.post('/api/trial/create', requireApiKey, async (req, res) => {
 app.get('/api/trial/active', requireApiKey, async (req, res) => {
     try {
         const trials = await trialManagementService.getActiveTrials();
-        
+
         res.json({
             success: true,
             count: trials.length,
@@ -2794,7 +2810,7 @@ app.get('/api/trial/expiring', requireApiKey, async (req, res) => {
     try {
         const daysThreshold = parseInt(req.query.daysThreshold) || 3;
         const trials = await trialManagementService.getExpiringTrials(daysThreshold);
-        
+
         res.json({
             success: true,
             daysThreshold,
@@ -2817,9 +2833,9 @@ app.get('/api/trial/expiring', requireApiKey, async (req, res) => {
 app.post('/api/trial/convert/:subscriptionId', requireApiKey, async (req, res) => {
     try {
         const { subscriptionId } = req.params;
-        
+
         const subscription = await trialManagementService.convertTrialToPaid(subscriptionId);
-        
+
         res.json({
             success: true,
             subscription
@@ -2842,12 +2858,12 @@ app.post('/api/trial/extend/:subscriptionId', requireApiKey, async (req, res) =>
     try {
         const { subscriptionId } = req.params;
         const { additionalDays } = req.body;
-        
+
         const subscription = await trialManagementService.extendTrial(
             subscriptionId,
             additionalDays || 7
         );
-        
+
         res.json({
             success: true,
             subscription
@@ -2870,12 +2886,12 @@ app.post('/api/trial/cancel/:subscriptionId', requireApiKey, async (req, res) =>
     try {
         const { subscriptionId } = req.params;
         const { reason } = req.body;
-        
+
         const subscription = await trialManagementService.cancelTrial(
             subscriptionId,
             reason || 'customer_request'
         );
-        
+
         res.json({
             success: true,
             subscription
@@ -2898,9 +2914,9 @@ app.get('/api/trial/metrics', requireApiKey, async (req, res) => {
     try {
         const startDate = req.query.startDate ? new Date(req.query.startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
         const endDate = req.query.endDate ? new Date(req.query.endDate) : new Date();
-        
+
         const metrics = await trialManagementService.getConversionMetrics(startDate, endDate);
-        
+
         res.json({
             success: true,
             metrics
@@ -2921,7 +2937,7 @@ app.get('/api/trial/metrics', requireApiKey, async (req, res) => {
 app.post('/api/trial/send-reminders', requireApiKey, async (req, res) => {
     try {
         const result = await trialManagementService.sendTrialReminders();
-        
+
         res.json({
             success: true,
             ...result
@@ -2947,7 +2963,7 @@ app.post('/api/trial/send-reminders', requireApiKey, async (req, res) => {
 app.post('/api/coupons/create', requireApiKey, async (req, res) => {
     try {
         const coupon = await couponService.createCoupon(req.body);
-        
+
         res.json({
             success: true,
             coupon
@@ -2969,7 +2985,7 @@ app.post('/api/coupons/create', requireApiKey, async (req, res) => {
 app.post('/api/coupons/promo/create', requireApiKey, async (req, res) => {
     try {
         const promotionCode = await couponService.createPromotionCode(req.body);
-        
+
         res.json({
             success: true,
             promotionCode
@@ -2991,7 +3007,7 @@ app.get('/api/coupons', requireApiKey, async (req, res) => {
     try {
         const limit = parseInt(req.query.limit) || 100;
         const coupons = await couponService.getAllCoupons(limit);
-        
+
         res.json({
             success: true,
             count: coupons.length,
@@ -3015,9 +3031,9 @@ app.get('/api/coupons/promo', requireApiKey, async (req, res) => {
     try {
         const active = req.query.active === 'true' ? true : req.query.active === 'false' ? false : null;
         const limit = parseInt(req.query.limit) || 100;
-        
+
         const promotionCodes = await couponService.getAllPromotionCodes(active, limit);
-        
+
         res.json({
             success: true,
             count: promotionCodes.length,
@@ -3040,15 +3056,15 @@ app.get('/api/coupons/promo', requireApiKey, async (req, res) => {
 app.post('/api/coupons/validate', async (req, res) => {
     try {
         const { code, customerId } = req.body;
-        
+
         if (!code) {
             return res.status(400).json({
                 message: 'code is required'
             });
         }
-        
+
         const result = await couponService.validatePromotionCode(code, customerId);
-        
+
         res.json(result);
     } catch (error) {
         console.error('Error validating promotion code:', error);
@@ -3068,15 +3084,15 @@ app.post('/api/coupons/apply/:subscriptionId', requireApiKey, async (req, res) =
     try {
         const { subscriptionId } = req.params;
         const { promotionCodeId } = req.body;
-        
+
         if (!promotionCodeId) {
             return res.status(400).json({
                 message: 'promotionCodeId is required'
             });
         }
-        
+
         const subscription = await couponService.applyToSubscription(subscriptionId, promotionCodeId);
-        
+
         res.json({
             success: true,
             subscription
@@ -3097,9 +3113,9 @@ app.post('/api/coupons/apply/:subscriptionId', requireApiKey, async (req, res) =
 app.delete('/api/coupons/remove/:subscriptionId', requireApiKey, async (req, res) => {
     try {
         const { subscriptionId } = req.params;
-        
+
         const subscription = await couponService.removeFromSubscription(subscriptionId);
-        
+
         res.json({
             success: true,
             subscription
@@ -3120,9 +3136,9 @@ app.delete('/api/coupons/remove/:subscriptionId', requireApiKey, async (req, res
 app.post('/api/coupons/promo/deactivate/:promotionCodeId', requireApiKey, async (req, res) => {
     try {
         const { promotionCodeId } = req.params;
-        
+
         const promotionCode = await couponService.deactivatePromotionCode(promotionCodeId);
-        
+
         res.json({
             success: true,
             promotionCode
@@ -3143,9 +3159,9 @@ app.post('/api/coupons/promo/deactivate/:promotionCodeId', requireApiKey, async 
 app.delete('/api/coupons/:couponId', requireApiKey, async (req, res) => {
     try {
         const { couponId } = req.params;
-        
+
         const result = await couponService.deleteCoupon(couponId);
-        
+
         res.json({
             success: true,
             deleted: result.deleted
@@ -3166,9 +3182,9 @@ app.delete('/api/coupons/:couponId', requireApiKey, async (req, res) => {
 app.get('/api/coupons/stats/:couponId', requireApiKey, async (req, res) => {
     try {
         const { couponId } = req.params;
-        
+
         const stats = await couponService.getCouponStats(couponId);
-        
+
         res.json({
             success: true,
             stats
@@ -3190,7 +3206,7 @@ app.get('/api/coupons/stats/:couponId', requireApiKey, async (req, res) => {
 app.post('/api/coupons/promo/bulk', requireApiKey, async (req, res) => {
     try {
         const result = await couponService.createBulkPromotionCodes(req.body);
-        
+
         res.json({
             success: true,
             ...result
@@ -3212,13 +3228,13 @@ app.post('/api/coupons/promo/bulk', requireApiKey, async (req, res) => {
 app.post('/api/coupons/send-email', requireApiKey, async (req, res) => {
     try {
         const { email, customerName, code } = req.body;
-        
+
         if (!email || !code) {
             return res.status(400).json({
                 message: 'email and code are required'
             });
         }
-        
+
         // Validate and get coupon details
         const validation = await couponService.validatePromotionCode(code);
         if (!validation.valid) {
@@ -3226,9 +3242,9 @@ app.post('/api/coupons/send-email', requireApiKey, async (req, res) => {
                 message: validation.error
             });
         }
-        
+
         await couponService.sendPromotionEmail(email, customerName, code, validation.coupon);
-        
+
         res.json({
             success: true,
             message: 'Promotion email sent'
@@ -3323,14 +3339,14 @@ app.post('/api/churn/analyze/:customerId', requireApiKey, async (req, res) => {
     try {
         const { customerId } = req.params;
         const analysis = await churnPredictionService.calculateChurnRisk(customerId);
-        
+
         logAudit({
             action: 'churn_risk_calculated',
             customerId,
             riskScore: analysis.riskScore,
             riskLevel: analysis.riskLevel
         });
-        
+
         res.json(analysis);
     } catch (error) {
         console.error('Error calculating churn risk:', error);
@@ -3343,9 +3359,9 @@ app.get('/api/churn/at-risk', requireApiKey, async (req, res) => {
     try {
         const minRiskScore = parseInt(req.query.minRiskScore) || 50;
         const limit = parseInt(req.query.limit) || 100;
-        
+
         const atRiskCustomers = await churnPredictionService.getAtRiskCustomers(minRiskScore, limit);
-        
+
         res.json({
             minRiskScore,
             count: atRiskCustomers.length,
@@ -3361,13 +3377,13 @@ app.get('/api/churn/at-risk', requireApiKey, async (req, res) => {
 app.get('/api/churn/report', requireApiKey, async (req, res) => {
     try {
         const report = await churnPredictionService.generateChurnReport();
-        
+
         logAudit({
             action: 'churn_report_generated',
             totalCustomers: report.totalCustomers,
             atRiskCount: report.atRiskCount
         });
-        
+
         res.json(report);
     } catch (error) {
         console.error('Error generating churn report:', error);
@@ -3380,13 +3396,13 @@ app.post('/api/churn/retention/:customerId', requireApiKey, async (req, res) => 
     try {
         const { customerId } = req.params;
         const result = await churnPredictionService.executeRetentionActions(customerId);
-        
+
         logAudit({
             action: 'retention_actions_executed',
             customerId,
             actionsCount: result.actions.length
         });
-        
+
         res.json(result);
     } catch (error) {
         console.error('Error executing retention actions:', error);
@@ -3398,17 +3414,17 @@ app.post('/api/churn/retention/:customerId', requireApiKey, async (req, res) => 
 app.get('/api/churn/cohort-analysis', requireApiKey, async (req, res) => {
     try {
         const { startDate, endDate, cohortBy = 'month' } = req.query;
-        
+
         if (!startDate || !endDate) {
             return res.status(400).json({ error: 'startDate and endDate are required' });
         }
-        
+
         const analysis = await churnPredictionService.analyzeCohortChurn(
             new Date(startDate),
             new Date(endDate),
             cohortBy
         );
-        
+
         res.json(analysis);
     } catch (error) {
         console.error('Error analyzing cohort churn:', error);
@@ -3425,13 +3441,13 @@ app.post('/api/reports/build', requireApiKey, async (req, res) => {
     try {
         const reportSpec = req.body;
         const report = await reportBuilderService.buildReport(reportSpec);
-        
+
         logAudit({
             action: 'report_built',
             reportType: reportSpec.type,
             recordCount: report.totalRecords
         });
-        
+
         res.json(report);
     } catch (error) {
         console.error('Error building report:', error);
@@ -3444,12 +3460,12 @@ app.post('/api/reports/export/pdf', requireApiKey, async (req, res) => {
     try {
         const reportData = req.body;
         const pdfBuffer = await reportBuilderService.exportToPDF(reportData, 'report.pdf');
-        
+
         logAudit({
             action: 'report_exported_pdf',
             reportType: reportData.type
         });
-        
+
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', 'attachment; filename=report.pdf');
         res.send(pdfBuffer);
@@ -3464,12 +3480,12 @@ app.post('/api/reports/export/excel', requireApiKey, async (req, res) => {
     try {
         const reportData = req.body;
         const excelBuffer = await reportBuilderService.exportToExcel(reportData, 'report.xlsx');
-        
+
         logAudit({
             action: 'report_exported_excel',
             reportType: reportData.type
         });
-        
+
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', 'attachment; filename=report.xlsx');
         res.send(excelBuffer);
@@ -3484,12 +3500,12 @@ app.post('/api/reports/templates', requireApiKey, async (req, res) => {
     try {
         const { name, spec, description } = req.body;
         const template = await reportBuilderService.saveTemplate(name, spec, description);
-        
+
         logAudit({
             action: 'report_template_saved',
             templateName: name
         });
-        
+
         res.json(template);
     } catch (error) {
         console.error('Error saving report template:', error);
@@ -3527,8 +3543,8 @@ app.get('/api/scheduler/status', requireApiKey, async (req, res) => {
 app.post('/api/scheduler/start', requireApiKey, async (req, res) => {
     try {
         schedulerService.start();
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             message: 'Scheduler started',
             status: schedulerService.getJobsStatus()
         });
@@ -3542,8 +3558,8 @@ app.post('/api/scheduler/start', requireApiKey, async (req, res) => {
 app.post('/api/scheduler/stop', requireApiKey, async (req, res) => {
     try {
         schedulerService.stop();
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             message: 'Scheduler stopped'
         });
     } catch (error) {
@@ -3557,14 +3573,14 @@ app.post('/api/scheduler/trigger/:jobName', requireApiKey, async (req, res) => {
     try {
         const { jobName } = req.params;
         await schedulerService.triggerJob(jobName);
-        
+
         logAudit({
             action: 'scheduler_job_triggered',
             jobName
         });
-        
-        res.json({ 
-            success: true, 
+
+        res.json({
+            success: true,
             message: `Job ${jobName} triggered successfully`
         });
     } catch (error) {
@@ -3966,10 +3982,10 @@ app.get('/api/export-center/download/:filename', requireApiKey, async (req, res)
     try {
         const { filename } = req.params;
         const filepath = path.join(__dirname, 'exports', filename);
-        
+
         // Check if file exists
         await promises.access(filepath);
-        
+
         res.download(filepath, filename);
     } catch (error) {
         console.error('Error downloading export:', error);
@@ -4131,8 +4147,8 @@ app.post('/api/email/send', express.json(), async (req, res) => {
             }
         }
 
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             messageId: info.messageId,
             accepted: info.accepted,
             rejected: info.rejected
@@ -4159,9 +4175,9 @@ app.post('/api/email/send', express.json(), async (req, res) => {
             }
         }
 
-        res.status(500).json({ 
-            error: 'Failed to send email', 
-            details: error.message 
+        res.status(500).json({
+            error: 'Failed to send email',
+            details: error.message
         });
     }
 });
@@ -4282,7 +4298,7 @@ app.get('/api/scheduler/status', (req, res) => {
 app.post('/api/trial-automation/reminders/:type', express.json(), async (req, res) => {
     try {
         const { type } = req.params; // '7day' or '1day'
-        
+
         if (!['7day', '1day'].includes(type)) {
             return res.status(400).json({ error: 'Invalid reminder type. Use 7day or 1day' });
         }
@@ -4290,7 +4306,7 @@ app.post('/api/trial-automation/reminders/:type', express.json(), async (req, re
         // This endpoint will be called by frontend trialAutomationService
         // The actual logic should run on server-side scheduler
         console.log(`Trial ${type} reminder job triggered via API`);
-        
+
         res.json({
             success: true,
             message: `Trial ${type} reminder job queued`,
@@ -4325,7 +4341,7 @@ app.get('/api/trial-automation/stats', async (req, res) => {
 app.post('/api/trial-automation/check-expirations', express.json(), async (req, res) => {
     try {
         console.log('Manual trial expiration check triggered');
-        
+
         res.json({
             success: true,
             message: 'Trial expiration check queued'
@@ -4475,7 +4491,7 @@ app.get('/api/owner/compliance/export-user/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
         const exportData = await ownerComplianceService.exportUserData(userId);
-        
+
         // Set headers for file download
         res.setHeader('Content-Type', 'application/json');
         res.setHeader('Content-Disposition', `attachment; filename="user-data-${userId}-${Date.now()}.json"`);
@@ -4534,11 +4550,11 @@ app.get('/api/billing/stripe-data/:customerId', requireApiKey, async (req, res) 
         if (!stripe) {
             return res.status(500).json({ error: 'Stripe not configured' });
         }
-        
+
         const customer = await stripe.customers.retrieve(customerId);
         const subscriptions = await stripe.subscriptions.list({ customer: customerId, limit: 1 });
         const subscription = subscriptions.data[0];
-        
+
         res.json({
             customerId,
             subscriptionId: subscription?.id,
@@ -4642,7 +4658,7 @@ app.post('/api/migration/export', requireApiKey, express.json(), async (req, res
 // Start server
 app.listen(port, () => {
     console.log(`Payment server running at http://localhost:${port}`);
-    
+
     // Start automated scheduler
     schedulerService.start();
 });

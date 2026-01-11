@@ -209,16 +209,13 @@ export const eventService = {
         filter: options?.filter || '',
         requestKey: null
       });
-      if (result.success) {
-        return {
-          items: result.data.items,
-          page: result.data.page,
-          perPage: result.data.perPage,
-          totalItems: result.data.totalItems,
-          totalPages: result.data.totalPages
-        };
-      }
-      return { items: [], page, perPage, totalItems: 0, totalPages: 0 };
+      return {
+        items: result.items as Event[],
+        page: result.page,
+        perPage: result.perPage,
+        totalItems: result.totalItems,
+        totalPages: result.totalPages
+      };
     } catch (error) {
       console.error('Error fetching events:', error);
       return { items: [], page, perPage, totalItems: 0, totalPages: 0 };
@@ -241,7 +238,7 @@ export const eventService = {
         requestKey: null
       });
       if (result.success) {
-        return Some(result.data);
+        return Some(result.data as Event);
       }
       return None();
     } catch (error) {
@@ -271,10 +268,7 @@ export const eventService = {
         sort: 'start_time',
         requestKey: null
       });
-      if (result.success) {
-        return result.data.items;
-      }
-      return [];
+      return result.items as Event[];
     } catch (error) {
       console.error('Error fetching upcoming events:', error);
       return [];
@@ -316,9 +310,13 @@ export const eventService = {
       const result = await eventsCollection.create(data as Partial<Event>);
       if (result.success) {
         auditLog.log('event_created', { eventId: result.data.id, title: result.data.title }, 'info');
-        return Ok(result.data);
+        return Ok(result.data as Event);
       }
-      return result;
+      return Err(new AppError(
+        'Failed to create event',
+        'EVENT_CREATE_FAILED',
+        500
+      ));
     } catch (error) {
       if (error instanceof AppError) {
         return Err(error);
@@ -349,11 +347,16 @@ export const eventService = {
     try {
       const pb = pocketBaseClient.getRawClient();
       const eventsCollection = createTypedCollection<Event>(pb, 'events');
-      const result = await eventsCollection.update(id, data);
+      const result = await eventsCollection.update(id, data as Partial<Event>);
       if (result.success) {
-        return Ok(result.data);
+        auditLog.log('event_updated', { eventId: result.data.id }, 'info');
+        return Ok(result.data as Event);
       }
-      return result;
+      return Err(new AppError(
+        'Failed to update event',
+        'EVENT_UPDATE_FAILED',
+        500
+      ));
     } catch (error) {
       if (error instanceof AppError) {
         return Err(error);
@@ -369,28 +372,29 @@ export const eventService = {
   /**
    * Delete event
    */
-  async deleteEvent(id: string): Promise<boolean> {
+  async deleteEvent(id: string): Promise<Result<boolean, AppError>> {
     if (isMockEnv()) {
       const index = MOCK_EVENTS.findIndex(e => e.id === id);
       if (index !== -1) {
         MOCK_EVENTS.splice(index, 1);
         auditLog.log('event_deleted', { eventId: id }, 'info');
       }
-      return true;
+      return Ok(true);
     }
 
     try {
       const pb = pocketBaseClient.getRawClient();
       const eventsCollection = createTypedCollection<Event>(pb, 'events');
       const result = await eventsCollection.delete(id);
-      if (!result.success) {
-        return false;
-      }
       auditLog.log('event_deleted', { eventId: id }, 'info');
-      return true;
+      return Ok(true);
     } catch (error) {
       console.error('Error deleting event:', error);
-      return false;
+      return Err(new AppError(
+        error instanceof Error ? error.message : 'Error deleting event',
+        'EVENT_DELETE_FAILED',
+        500
+      ));
     }
   },
 
@@ -422,16 +426,8 @@ export const eventService = {
       return Err(new NotFoundError('Event'));
     }
     const event = eventOption.value;
-
-  /**
-   * Unregister from event
-   */
-  async unregisterFromEvent(eventId: string, userId: string): Promise<Event | null> {
-    const event = await this.getEvent(eventId);
-    if (!event) return null;
-
     if (!event.attendees?.includes(userId)) {
-      throw new Error('Not registered');
+      return Err(new AppError('Not registered', 'NOT_REGISTERED', 400));
     }
 
     const newAttendees = event.attendees.filter(a => a !== userId);
@@ -454,10 +450,7 @@ export const eventService = {
         sort: 'start_time',
         requestKey: null
       });
-      if (result.success) {
-        return result.data;
-      }
-      return [];
+      return result as Event[];
     } catch (error) {
       console.error('Error fetching events by type:', error);
       return [];
@@ -486,16 +479,13 @@ export const eventService = {
         filter += ` && start >= "${dateRange.start}" && start <= "${dateRange.end}"`;
       }
       const pb = pocketBaseClient.getRawClient();
-      const calendarEventsCollection = createTypedCollection<CalendarEvent>(pb, 'calendar_events');
-      const result = await calendarEventsCollection.getFullList({
+      const calendarCollection = createTypedCollection<CalendarEvent>(pb, 'calendar_events');
+      const result = await calendarCollection.getFullList({
         filter,
         sort: 'start',
         requestKey: null
       });
-      if (result.success) {
-        return result.data;
-      }
-      return [];
+      return result as CalendarEvent[];
     } catch (error) {
       console.error('Error fetching calendar events:', error);
       return [];
@@ -529,12 +519,17 @@ export const eventService = {
 
     try {
       const pb = pocketBaseClient.getRawClient();
-      const calendarEventsCollection = createTypedCollection<CalendarEvent>(pb, 'calendar_events');
-      const result = await calendarEventsCollection.create(data as Partial<CalendarEvent>);
+      const calendarCollection = createTypedCollection<CalendarEvent>(pb, 'calendar_events');
+      const result = await calendarCollection.create(data as Partial<CalendarEvent>);
       if (result.success) {
-        return Ok(result.data);
+        auditLog.log('calendar_event_created', { eventId: result.data.id, title: result.data.title }, 'info');
+        return Ok(result.data as CalendarEvent);
       }
-      return result;
+      return Err(new AppError(
+        'Failed to create calendar event',
+        'CALENDAR_EVENT_CREATE_FAILED',
+        500
+      ));
     } catch (error) {
       if (error instanceof AppError) {
         return Err(error);
@@ -565,11 +560,9 @@ export const eventService = {
     try {
       const pb = pocketBaseClient.getRawClient();
       const calendarEventsCollection = createTypedCollection<CalendarEvent>(pb, 'calendar_events');
-      const result = await calendarEventsCollection.update(id, data);
-      if (result.success) {
-        return Ok(result.data);
-      }
-      return result;
+      const result = await calendarEventsCollection.update(id, data) as CalendarEvent;
+      auditLog.log('calendar_event_updated', { eventId: result.id }, 'info');
+      return Ok(result);
     } catch (error) {
       if (error instanceof AppError) {
         return Err(error);
@@ -585,26 +578,28 @@ export const eventService = {
   /**
    * Delete calendar event
    */
-  async deleteCalendarEvent(id: string): Promise<boolean> {
+  async deleteCalendarEvent(id: string): Promise<Result<boolean, AppError>> {
     if (isMockEnv()) {
       const index = MOCK_CALENDAR_EVENTS.findIndex(e => e.id === id);
       if (index !== -1) {
         MOCK_CALENDAR_EVENTS.splice(index, 1);
       }
-      return true;
+      return Ok(true);
     }
 
     try {
       const pb = pocketBaseClient.getRawClient();
-      const calendarEventsCollection = createTypedCollection<CalendarEvent>(pb, 'calendar_events');
-      const result = await calendarEventsCollection.delete(id);
-      if (!result.success) {
-        return false;
-      }
-      return true;
+      const calendarCollection = createTypedCollection<CalendarEvent>(pb, 'calendar_events');
+      await calendarCollection.delete(id);
+      auditLog.log('calendar_event_deleted', { eventId: id }, 'info');
+      return Ok(true);
     } catch (error) {
       console.error('Error deleting calendar event:', error);
-      return false;
+      return Err(new AppError(
+        error instanceof Error ? error.message : 'Error deleting calendar event',
+        'CALENDAR_EVENT_DELETE_FAILED',
+        500
+      ));
     }
   },
 
@@ -625,7 +620,7 @@ export const eventService = {
 
     // For production, this would typically be handled by a background job
     const events = await this.getCalendarEvents(userId);
-    return events.filter(e => {
+    return events.filter((e: CalendarEvent) => {
       if (!e.reminder) return false;
       const eventStart = new Date(e.start);
       const reminderTime = new Date(eventStart.getTime() - e.reminder * 60 * 1000);
@@ -690,6 +685,7 @@ export const eventService = {
     }
 
     try {
+      const pb = pocketBaseClient.getRawClient();
       const filters: string[] = [];
       if (search) {
         filters.push(`name ~ "${search}" || description ~ "${search}"`);
@@ -736,6 +732,7 @@ export const eventService = {
     }
 
     try {
+      const pb = pocketBaseClient.getRawClient();
       return await pb.collection('activities').getOne<EventActivity>(id, {
         requestKey: null
       });
@@ -770,6 +767,7 @@ export const eventService = {
     }
 
     try {
+      const pb = pocketBaseClient.getRawClient();
       return await pb.collection('activities').create<EventActivity>(data);
     } catch (error) {
       console.error('Error creating activity:', error);
@@ -793,6 +791,7 @@ export const eventService = {
     }
 
     try {
+      const pb = pocketBaseClient.getRawClient();
       return await pb.collection('activities').update<EventActivity>(id, data);
     } catch (error) {
       console.error('Error updating activity:', error);
@@ -813,6 +812,7 @@ export const eventService = {
     }
 
     try {
+      const pb = pocketBaseClient.getRawClient();
       await pb.collection('activities').delete(id);
       return true;
     } catch (error) {
@@ -880,6 +880,7 @@ export const eventService = {
       };
     }
 
+    const pb = pocketBaseClient.getRawClient();
     const events = await pb.collection('events').getFullList<Event>({ requestKey: null });
     const activities = await pb.collection('activities').getFullList<EventActivity>({ requestKey: null });
 
@@ -893,8 +894,8 @@ export const eventService = {
 
     return {
       totalEvents: events.length,
-      publishedEvents: events.filter(e => e.status === 'published').length,
-      upcomingEvents: events.filter(e => new Date(e.start_time) > new Date()).length,
+      publishedEvents: events.filter((e: Event) => e.status === 'published').length,
+      upcomingEvents: events.filter((e: Event) => new Date(e.start_time) > new Date()).length,
       totalAttendees,
       totalActivities: activities.length,
       byType

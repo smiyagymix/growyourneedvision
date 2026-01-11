@@ -131,16 +131,13 @@ class UserManagementService {
             const newUser = await pb.collection(this.collection).create<User>(userData);
 
             // Audit log
-            await auditLog({
-                action: 'user.created',
+            await auditLog.log('user.created', {
                 target_type: 'user',
                 target_id: newUser.id,
-                details: {
-                    user_email: newUser.email,
-                    user_role: newUser.role,
-                    created_by: createdBy || 'system'
-                }
-            });
+                user_email: newUser.email,
+                user_role: newUser.role,
+                created_by: createdBy || 'system'
+            }, 'info');
 
             return newUser;
         } catch (error) {
@@ -169,15 +166,12 @@ class UserManagementService {
             const updatedUser = await pb.collection(this.collection).update<User>(userId, updateData);
 
             // Audit log
-            await auditLog({
-                action: 'user.updated',
+            await auditLog.log('user.updated', {
                 target_type: 'user',
                 target_id: userId,
-                details: {
-                    updated_fields: Object.keys(data),
-                    updated_by: updatedBy || 'system'
-                }
-            });
+                updated_fields: Object.keys(data),
+                updated_by: updatedBy || 'system'
+            }, 'info');
 
             return updatedUser;
         } catch (error) {
@@ -201,15 +195,12 @@ class UserManagementService {
             }
 
             // Audit log
-            await auditLog({
-                action: hardDelete ? 'user.hard_deleted' : 'user.soft_deleted',
+            await auditLog.log(hardDelete ? 'user.hard_deleted' : 'user.soft_deleted', {
                 target_type: 'user',
                 target_id: userId,
-                details: {
-                    deleted_by: deletedBy || 'system',
-                    hard_delete: hardDelete
-                }
-            });
+                deleted_by: deletedBy || 'system',
+                hard_delete: hardDelete
+            }, 'warning');
         } catch (error) {
             console.error('Failed to delete user:', error);
             throw error;
@@ -223,14 +214,11 @@ class UserManagementService {
         try {
             const user = await this.updateUser(userId, { status: 'suspended' }, suspendedBy);
 
-            await auditLog({
-                action: 'user.suspended',
+            await auditLog.log('user.suspended', {
                 target_type: 'user',
                 target_id: userId,
-                details: {
-                    suspended_by: suspendedBy || 'system'
-                }
-            });
+                suspended_by: suspendedBy || 'system'
+            }, 'warning');
 
             return user;
         } catch (error) {
@@ -246,14 +234,11 @@ class UserManagementService {
         try {
             const user = await this.updateUser(userId, { status: 'active' }, reactivatedBy);
 
-            await auditLog({
-                action: 'user.reactivated',
+            await auditLog.log('user.reactivated', {
                 target_type: 'user',
                 target_id: userId,
-                details: {
-                    reactivated_by: reactivatedBy || 'system'
-                }
-            });
+                reactivated_by: reactivatedBy || 'system'
+            }, 'info');
 
             return user;
         } catch (error) {
@@ -313,14 +298,11 @@ class UserManagementService {
                 passwordConfirm: newPassword
             });
 
-            await auditLog({
-                action: 'user.password_reset',
+            await auditLog.log('user.password_reset', {
                 target_type: 'user',
                 target_id: userId,
-                details: {
-                    reset_by: resetBy || 'system'
-                }
-            });
+                reset_by: resetBy || 'system'
+            }, 'warning');
         } catch (error) {
             console.error('Failed to reset password:', error);
             throw error;
@@ -335,16 +317,13 @@ class UserManagementService {
             const promises = userIds.map(id => this.updateUser(id, updates, updatedBy));
             await Promise.all(promises);
 
-            await auditLog({
-                action: 'user.bulk_updated',
+            await auditLog.log('user.bulk_updated', {
                 target_type: 'user',
                 target_id: 'bulk',
-                details: {
-                    user_count: userIds.length,
-                    updates: Object.keys(updates),
-                    updated_by: updatedBy || 'system'
-                }
-            });
+                user_count: userIds.length,
+                updates: Object.keys(updates),
+                updated_by: updatedBy || 'system'
+            }, 'info');
         } catch (error) {
             console.error('Failed to bulk update users:', error);
             throw error;

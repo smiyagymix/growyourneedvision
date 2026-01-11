@@ -158,8 +158,9 @@ const MOCK_BOOKINGS: TravelBooking[] = [
         details: {
             airline: 'Air France',
             flightNumber: 'AF123',
-            seat: '12A',
-            gate: 'B22'
+            departure: '2024-06-15T10:00:00Z',
+            arrival: '2024-06-15T18:00:00Z',
+            class: 'Economy'
         } as FlightDetails,
         confirmation_code: 'AF123XYZ',
         created: '2024-05-01T10:00:00Z'
@@ -174,8 +175,9 @@ const MOCK_BOOKINGS: TravelBooking[] = [
         status: 'Confirmed',
         total_cost: 1200,
         details: {
-            hotelName: 'Le Grand Hotel',
-            roomType: 'Deluxe Suite',
+            name: 'Le Grand Hotel',
+            checkIn: '2024-06-15',
+            checkOut: '2024-06-20',
             address: '12 Rue de Rivoli, Paris'
         } as HotelDetails,
         confirmation_code: 'LGH456ABC',
@@ -191,6 +193,7 @@ const MOCK_BOOKINGS: TravelBooking[] = [
         status: 'Pending',
         total_cost: 350,
         details: {
+            type: 'Car',
             company: 'Europcar',
             carType: 'Sedan',
             pickupLocation: 'CDG Airport'
@@ -312,7 +315,7 @@ export const travelService = {
     searchDestinations: async (query: string): Promise<TravelDestination[]> => {
         if (isMockEnv()) {
             const lowerQuery = query.toLowerCase();
-            return MOCK_DESTINATIONS.filter(d => 
+            return MOCK_DESTINATIONS.filter(d =>
                 d.name.toLowerCase().includes(lowerQuery) ||
                 d.country.toLowerCase().includes(lowerQuery) ||
                 d.region.toLowerCase().includes(lowerQuery)
@@ -392,7 +395,7 @@ export const travelService = {
                 end_date: data.end_date,
                 status: 'Pending',
                 total_cost: data.total_cost || 0,
-                details: data.details || {},
+                details: data.details || { type: data.type || 'Flight' },
                 confirmation_code: `GYN${Date.now().toString(36).toUpperCase()}`,
                 created: new Date().toISOString()
             };
@@ -555,7 +558,7 @@ export const travelService = {
     // Transport
     getLocalTransport: async (location: string): Promise<TransportOption[]> => {
         if (isMockEnv()) {
-            return MOCK_TRANSPORT.filter(t => 
+            return MOCK_TRANSPORT.filter(t =>
                 t.origin.toLowerCase().includes(location.toLowerCase()) ||
                 t.destination.toLowerCase().includes(location.toLowerCase())
             );
@@ -569,7 +572,7 @@ export const travelService = {
 
     searchTransport: async (origin: string, destination: string): Promise<TransportOption[]> => {
         if (isMockEnv()) {
-            return MOCK_TRANSPORT.filter(t => 
+            return MOCK_TRANSPORT.filter(t =>
                 t.origin.toLowerCase().includes(origin.toLowerCase()) &&
                 (t.destination.toLowerCase().includes(destination.toLowerCase()) || t.destination === 'Flexible') &&
                 t.available
@@ -585,7 +588,7 @@ export const travelService = {
     // Flight Search
     searchFlights: async (from: string, to: string, _date: string): Promise<TravelBooking[]> => {
         if (isMockEnv()) {
-            return MOCK_BOOKINGS.filter(b => 
+            return MOCK_BOOKINGS.filter(b =>
                 b.type === 'Flight' &&
                 b.origin?.toLowerCase().includes(from.toLowerCase()) &&
                 b.destination.toLowerCase().includes(to.toLowerCase())
@@ -601,7 +604,7 @@ export const travelService = {
     // Hotel Search
     searchHotels: async (location: string, _checkIn: string, _checkOut: string): Promise<TravelBooking[]> => {
         if (isMockEnv()) {
-            return MOCK_BOOKINGS.filter(b => 
+            return MOCK_BOOKINGS.filter(b =>
                 b.type === 'Hotel' &&
                 b.destination.toLowerCase().includes(location.toLowerCase())
             );
@@ -673,7 +676,7 @@ export const travelService = {
                 confirmedBookings: userBookings.filter(b => b.status === 'Confirmed').length,
                 totalSpent: userBookings.reduce((sum, b) => sum + b.total_cost, 0),
                 totalItineraries: userItineraries.length,
-                upcomingTrips: userBookings.filter(b => 
+                upcomingTrips: userBookings.filter(b =>
                     b.status === 'Confirmed' && new Date(b.start_date) > new Date()
                 ).length,
                 countriesVisited: [...new Set(userBookings.filter(b => b.status === 'Completed').map(b => b.destination))].length
@@ -691,7 +694,7 @@ export const travelService = {
                 confirmedBookings: bookings.filter(b => b.status === 'Confirmed').length,
                 totalSpent: bookings.reduce((sum, b) => sum + b.total_cost, 0),
                 totalItineraries: itineraries.length,
-                upcomingTrips: bookings.filter(b => 
+                upcomingTrips: bookings.filter(b =>
                     b.status === 'Confirmed' && new Date(b.start_date) > new Date()
                 ).length,
                 countriesVisited: [...new Set(bookings.filter(b => b.status === 'Completed').map(b => b.destination))].length

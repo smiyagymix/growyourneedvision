@@ -259,11 +259,12 @@ class SupportTicketService {
             const updatedTicket = await pb.collection(this.collection).update<SupportTicket>(ticketId, updateData);
 
             // Audit log
-            await auditLog({
+            await auditLogger.log({
                 action: 'ticket.updated',
-                target_type: 'support_ticket',
-                target_id: ticketId,
-                details: {
+                resource_type: 'support_ticket',
+                resource_id: ticketId,
+                severity: 'info',
+                metadata: {
                     updated_fields: Object.keys(data),
                     updated_by: updatedBy || 'system'
                 }
@@ -306,11 +307,12 @@ class SupportTicketService {
                 status: 'in_progress'
             }, assignedBy);
 
-            await auditLog({
+            await auditLogger.log({
                 action: 'ticket.assigned',
-                target_type: 'support_ticket',
-                target_id: ticketId,
-                details: {
+                resource_type: 'support_ticket',
+                resource_id: ticketId,
+                severity: 'info',
+                metadata: {
                     assigned_to: userId,
                     assigned_by: assignedBy || 'system'
                 }
@@ -333,11 +335,12 @@ class SupportTicketService {
                 priority: 'critical'
             }, escalatedBy);
 
-            await auditLog({
+            await auditLogger.log({
                 action: 'ticket.escalated',
-                target_type: 'support_ticket',
-                target_id: ticketId,
-                details: {
+                resource_type: 'support_ticket',
+                resource_id: ticketId,
+                severity: 'warning',
+                metadata: {
                     reason,
                     escalated_by: escalatedBy || 'system'
                 }

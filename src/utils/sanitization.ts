@@ -18,13 +18,13 @@ export const SANITIZE_CONFIG = {
         ALLOWED_ATTR: [] as string[],
         KEEP_CONTENT: true,
     },
-    
+
     // Basic: Allows safe formatting tags only
     BASIC: {
         ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'u', 'br', 'p', 'span'],
         ALLOWED_ATTR: ['class'],
     },
-    
+
     // Rich: Allows rich text formatting with links and lists
     RICH: {
         ALLOWED_TAGS: [
@@ -36,7 +36,7 @@ export const SANITIZE_CONFIG = {
         ALLOWED_ATTR: ['href', 'class', 'id', 'target', 'rel'],
         ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|cid|xmpp):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
     },
-    
+
     // Media: Allows images and videos with strict attribute controls
     MEDIA: {
         ALLOWED_TAGS: [
@@ -61,10 +61,10 @@ export function sanitizeHtml(
     config: keyof typeof SANITIZE_CONFIG = 'BASIC'
 ): string {
     if (!dirty || typeof dirty !== 'string') return '';
-    
+
     try {
         const result = DOMPurify.sanitize(dirty, { ...SANITIZE_CONFIG[config] as any, RETURN_TRUSTED_TYPE: false });
-        return result as string;
+        return result as unknown as string;
     } catch (error) {
         console.error('Sanitization failed:', error);
         return ''; // Return empty string on error for safety
@@ -79,11 +79,11 @@ export function sanitizeHtml(
  */
 export function sanitizeText(input: string): string {
     if (!input || typeof input !== 'string') return '';
-    
+
     try {
         // Use STRICT config to strip all tags
         const result = DOMPurify.sanitize(input, { ...SANITIZE_CONFIG.STRICT as any, RETURN_TRUSTED_TYPE: false });
-        const sanitized = result as string;
+        const sanitized = result as unknown as string;
         // Additional escape for safety
         return sanitized
             .replace(/&/g, '&amp;')
@@ -105,13 +105,13 @@ export function sanitizeText(input: string): string {
  */
 export function sanitizeUrl(url: string, allowDataUri: boolean = false): string {
     if (!url || typeof url !== 'string') return '';
-    
+
     const trimmed = url.trim();
-    
+
     // Block dangerous protocols
     const dangerousProtocols = ['javascript:', 'data:', 'vbscript:', 'file:'];
     const lowerUrl = trimmed.toLowerCase();
-    
+
     for (const protocol of dangerousProtocols) {
         if (protocol === 'data:' && allowDataUri) continue;
         if (lowerUrl.startsWith(protocol)) {
@@ -119,14 +119,14 @@ export function sanitizeUrl(url: string, allowDataUri: boolean = false): string 
             return '';
         }
     }
-    
+
     // Allow relative URLs, http, https, mailto, tel
     const safeProtocolRegex = /^(https?:\/\/|mailto:|tel:|\/|\.\/|#)/i;
     if (!safeProtocolRegex.test(trimmed)) {
         console.warn('Blocked URL with invalid protocol:', trimmed);
         return '';
     }
-    
+
     try {
         // Additional validation using DOMPurify
         const anchor = document.createElement('a');
@@ -145,17 +145,17 @@ export function sanitizeUrl(url: string, allowDataUri: boolean = false): string 
  */
 export function sanitizeFilename(filename: string): string | null {
     if (!filename || typeof filename !== 'string') return null;
-    
+
     // Remove path traversal attempts
     const cleaned = filename
         .replace(/\.\./g, '') // Remove ..
         .replace(/[\/\\]/g, '') // Remove path separators
         .replace(/[<>:"|?*]/g, '') // Remove invalid filename chars
         .trim();
-    
+
     if (!cleaned || cleaned.length === 0) return null;
     if (cleaned.length > 255) return null; // Max filename length
-    
+
     return cleaned;
 }
 
@@ -171,9 +171,9 @@ export function sanitizeObject<T extends Record<string, any>>(
     config: keyof typeof SANITIZE_CONFIG = 'BASIC'
 ): T {
     if (!obj || typeof obj !== 'object') return obj;
-    
+
     const sanitized = {} as T;
-    
+
     for (const [key, value] of Object.entries(obj)) {
         if (typeof value === 'string') {
             sanitized[key as keyof T] = sanitizeHtml(value, config) as any;
@@ -187,7 +187,7 @@ export function sanitizeObject<T extends Record<string, any>>(
             sanitized[key as keyof T] = value;
         }
     }
-    
+
     return sanitized;
 }
 
@@ -220,14 +220,14 @@ export interface SafeHtmlProps {
  * Safe HTML rendering with automatic sanitization
  * Prevents XSS by sanitizing content before rendering
  */
-export function SafeHtml({ 
-    html, 
-    config = 'BASIC', 
+export function SafeHtml({
+    html,
+    config = 'BASIC',
     className = '',
     as: Component = 'div'
 }: SafeHtmlProps): React.ReactElement {
     const sanitized = sanitizeHtml(html, config);
-    
+
     return React.createElement(
         Component,
         {
@@ -245,7 +245,7 @@ export function SafeHtml({
  */
 export function escapeHtml(str: string): string {
     if (!str || typeof str !== 'string') return '';
-    
+
     return str
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
@@ -278,7 +278,7 @@ export function sanitizeJson<T = any>(jsonString: string): T | null {
  */
 export function sanitizeSqlInput(input: string): string {
     if (!input || typeof input !== 'string') return '';
-    
+
     // Remove SQL keywords and dangerous characters
     return input
         .replace(/['";\\]/g, '') // Remove quotes and backslash
@@ -296,15 +296,15 @@ export function sanitizeSqlInput(input: string): string {
  */
 export function sanitizeEmail(email: string): string | null {
     if (!email || typeof email !== 'string') return null;
-    
+
     const trimmed = email.trim().toLowerCase();
-    
+
     // Basic email regex (RFC 5322 simplified)
     const emailRegex = /^[a-zA-Z0-9.!#$%&'*+\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
-    
+
     if (!emailRegex.test(trimmed)) return null;
     if (trimmed.length > 254) return null; // Max email length
-    
+
     return trimmed;
 }
 
@@ -315,12 +315,12 @@ export function sanitizeEmail(email: string): string | null {
  */
 export function sanitizePhone(phone: string): string | null {
     if (!phone || typeof phone !== 'string') return null;
-    
+
     // Keep only digits, +, and spaces
     const cleaned = phone.replace(/[^\d+\s()-]/g, '').trim();
-    
+
     if (cleaned.length < 10 || cleaned.length > 20) return null;
-    
+
     return cleaned;
 }
 

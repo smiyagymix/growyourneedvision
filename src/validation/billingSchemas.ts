@@ -19,7 +19,7 @@ export const InvoiceSchema = z.object({
   amount: z.number().positive('Amount must be positive'),
   status: InvoiceStatusSchema,
   due_date: z.string().datetime('Must be valid ISO date'),
-  paid_date: z.string().datetime('Must be valid ISO date').optional(),
+  paid_date: z.string().datetime('Must be valid ISO date').optional().nullable(),
   plan_name: z.string().min(1, 'Plan name required'),
   period: z.string().min(1, 'Period required'),
   description: z.string().optional(),
@@ -29,8 +29,8 @@ export const InvoiceSchema = z.object({
     unit_price: z.number().positive(),
     total: z.number().positive()
   })).optional(),
-  created: z.string().datetime().optional(),
-  updated: z.string().datetime().optional()
+  created: z.string().datetime().optional().nullable(),
+  updated: z.string().datetime().optional().nullable()
 });
 
 export type Invoice = z.infer<typeof InvoiceSchema>;
@@ -40,10 +40,10 @@ export type InvoiceCreate = z.infer<typeof InvoiceCreateSchema>;
 
 export const InvoiceListResponseSchema = z.object({
   items: z.array(InvoiceSchema),
-  total: z.number().non-negative(),
+  total: z.number().nonnegative(),
   page: z.number().positive(),
   perPage: z.number().positive(),
-  lastPage: z.number().non-negative()
+  lastPage: z.number().nonnegative()
 });
 
 export type InvoiceListResponse = z.infer<typeof InvoiceListResponseSchema>;
@@ -98,16 +98,16 @@ export type PaymentGatewayUpdate = z.infer<typeof PaymentGatewayUpdateSchema>;
 // ============= Billing Stats Schemas =============
 
 export const BillingStatsSchema = z.object({
-  total_revenue: z.number().non-negative(),
-  pending_amount: z.number().non-negative(),
-  overdue_count: z.number().non-negative(),
-  invoice_count: z.number().non-negative(),
-  paid_invoices: z.number().non-negative(),
-  pending_invoices: z.number().non-negative(),
-  overdue_invoices: z.number().non-negative(),
-  average_payment_time: z.number().non-negative().optional(),
-  mrr: z.number().non-negative().optional(),
-  arr: z.number().non-negative().optional()
+  total_revenue: z.number().nonnegative(),
+  pending_amount: z.number().nonnegative(),
+  overdue_count: z.number().nonnegative(),
+  invoice_count: z.number().nonnegative(),
+  paid_invoices: z.number().nonnegative(),
+  pending_invoices: z.number().nonnegative(),
+  overdue_invoices: z.number().nonnegative(),
+  average_payment_time: z.number().nonnegative().optional(),
+  mrr: z.number().nonnegative().optional(),
+  arr: z.number().nonnegative().optional()
 });
 
 export type BillingStats = z.infer<typeof BillingStatsSchema>;

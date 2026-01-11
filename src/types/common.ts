@@ -9,7 +9,7 @@ import { RecordModel } from 'pocketbase';
 
 // Generic metadata that's actually typed
 export interface Metadata {
-  [key: string]: string | number | boolean | Date | null | Metadata;
+  [key: string]: string | number | boolean | Date | null | Metadata | unknown[];
 }
 
 // For analytics and event tracking

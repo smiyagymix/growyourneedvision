@@ -26,7 +26,7 @@ export interface ChartData {
         data: number[];
         backgroundColor?: string;
         borderColor?: string;
-        [key: string]: string | number | boolean | undefined;
+        [key: string]: any;
     }>;
     total?: number;
 }
@@ -45,7 +45,7 @@ export interface UsageData {
 
 export interface ChurnData {
     atRiskCount: number;
-    predictions: Array<{ tenantId: string; riskScore: number; [key: string]: string | number | boolean | undefined }>;
+    predictions: Array<{ tenantId: string; riskScore: number;[key: string]: string | number | boolean | undefined }>;
 }
 
 export interface ActiveUsersData {
@@ -56,7 +56,7 @@ export interface ActiveUsersData {
 export interface StorageData {
     total: number;
     used: number;
-    byTenant: Array<{ tenantId: string; used: number; [key: string]: string | number | boolean | undefined }>;
+    byTenant: Array<{ tenantId: string; used: number;[key: string]: string | number | boolean | undefined }>;
 }
 
 export interface APICallsData {
@@ -96,16 +96,16 @@ export interface SystemStatusData {
 export interface MRRTrendData {
     current: number;
     growth: number;
-    history: Array<{ date: string; value: number; [key: string]: string | number | boolean | undefined }>;
+    history: Array<{ date: string; value: number;[key: string]: string | number | boolean | undefined }>;
 }
 
 export interface UserDistributionData {
-    distribution: Array<{ group: string; count: number; [key: string]: string | number | boolean | undefined }>;
+    distribution: Array<{ group: string; count: number;[key: string]: string | number | boolean | undefined }>;
     groupBy: string;
 }
 
 export interface FeatureAdoptionData {
-    features: Array<{ name: string; adoptionRate: number; [key: string]: string | number | boolean | undefined }>;
+    features: Array<{ name: string; adoptionRate: number;[key: string]: string | number | boolean | undefined }>;
     period: string;
 }
 
@@ -116,19 +116,19 @@ export interface AlertData {
     [key: string]: string | number | boolean | undefined;
 }
 
-export type WidgetData = 
-    | ChartData 
-    | TenantHealthData[] 
-    | UsageData 
-    | ChurnData 
-    | ActiveUsersData 
-    | StorageData 
-    | APICallsData 
-    | RecentSignupsData[] 
-    | TrialConversionsData 
-    | SupportTicketsData 
-    | SystemStatusData 
-    | MRRTrendData 
-    | UserDistributionData 
-    | FeatureAdoptionData 
+export type WidgetData =
+    | ChartData
+    | TenantHealthData[]
+    | UsageData
+    | ChurnData
+    | ActiveUsersData
+    | StorageData
+    | APICallsData
+    | RecentSignupsData[]
+    | TrialConversionsData
+    | SupportTicketsData
+    | SystemStatusData
+    | MRRTrendData
+    | UserDistributionData
+    | FeatureAdoptionData
     | AlertData[];

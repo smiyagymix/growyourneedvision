@@ -1,11 +1,15 @@
 import { pocketBaseClient } from '../lib/pocketbase';
-import { createTypedCollection } from '../lib/pocketbase-types';
+import { RecordModel } from 'pocketbase';
 import { isMockEnv } from '../utils/mockData';
 import { ListResult } from 'pocketbase';
 import { Result, Ok, Err, Option, Some, None } from '../lib/types';
 import { AppError, NotFoundError } from './errorHandler';
 
-export interface ServiceOffering {
+function createTypedCollection<T extends RecordModel>(pb: any, collectionName: string) {
+  return pb.collection(collectionName);
+}
+
+export interface ServiceOffering extends RecordModel {
   id: string;
   title: string;
   provider_name: string;
@@ -22,7 +26,7 @@ export interface ServiceOffering {
   created: string;
 }
 
-export interface ServiceCategory {
+export interface ServiceCategory extends RecordModel {
   id: string;
   name: string;
   description: string;
@@ -30,7 +34,7 @@ export interface ServiceCategory {
   services_count: number;
 }
 
-export interface ServiceReview {
+export interface ServiceReview extends RecordModel {
   id: string;
   service_id: string;
   user_id: string;
@@ -40,7 +44,7 @@ export interface ServiceReview {
   created: string;
 }
 
-export interface ServiceBooking {
+export interface ServiceBooking extends RecordModel {
   id: string;
   service_id: string;
   user_id: string;
@@ -69,7 +73,10 @@ const MOCK_SERVICES: ServiceOffering[] = [
     availability: 'Available',
     experience_years: 15,
     certifications: ['CPA', 'CFP'],
-    created: '2024-01-01T00:00:00Z'
+    created: '2024-01-01T00:00:00Z',
+    updated: '',
+    collectionId: '',
+    collectionName: ''
   },
   {
     id: 'svc-2',
@@ -84,7 +91,10 @@ const MOCK_SERVICES: ServiceOffering[] = [
     availability: 'Available',
     experience_years: 12,
     certifications: ['JD', 'Bar License'],
-    created: '2024-01-02T00:00:00Z'
+    created: '2024-01-02T00:00:00Z',
+    updated: '',
+    collectionId: '',
+    collectionName: ''
   },
   {
     id: 'svc-3',
@@ -98,7 +108,10 @@ const MOCK_SERVICES: ServiceOffering[] = [
     location: 'Chicago, IL',
     availability: 'Busy',
     experience_years: 20,
-    created: '2024-01-03T00:00:00Z'
+    created: '2024-01-03T00:00:00Z',
+    updated: '',
+    collectionId: '',
+    collectionName: ''
   },
   {
     id: 'svc-4',
@@ -113,7 +126,10 @@ const MOCK_SERVICES: ServiceOffering[] = [
     availability: 'Available',
     experience_years: 8,
     certifications: ['NASM', 'ACE'],
-    created: '2024-01-04T00:00:00Z'
+    created: '2024-01-04T00:00:00Z',
+    updated: '',
+    collectionId: '',
+    collectionName: ''
   },
   {
     id: 'svc-5',
@@ -127,28 +143,31 @@ const MOCK_SERVICES: ServiceOffering[] = [
     location: 'San Francisco, CA',
     availability: 'Available',
     experience_years: 10,
-    created: '2024-01-05T00:00:00Z'
+    created: '2024-01-05T00:00:00Z',
+    updated: '',
+    collectionId: '',
+    collectionName: ''
   }
 ];
 
 const MOCK_CATEGORIES: ServiceCategory[] = [
-  { id: 'cat-1', name: 'Finance', description: 'Financial and accounting services', icon: '💰', services_count: 45 },
-  { id: 'cat-2', name: 'Legal', description: 'Legal consultation and representation', icon: '⚖️', services_count: 32 },
-  { id: 'cat-3', name: 'Home Services', description: 'Home improvement and maintenance', icon: '🏠', services_count: 78 },
-  { id: 'cat-4', name: 'Health & Fitness', description: 'Health and wellness services', icon: '💪', services_count: 56 },
-  { id: 'cat-5', name: 'Technology', description: 'Tech and digital services', icon: '💻', services_count: 67 },
-  { id: 'cat-6', name: 'Education', description: 'Tutoring and training services', icon: '📚', services_count: 41 }
+  { id: 'cat-1', name: 'Finance', description: 'Financial and accounting services', icon: '💰', services_count: 45, created: '', updated: '', collectionId: '', collectionName: '' },
+  { id: 'cat-2', name: 'Legal', description: 'Legal consultation and representation', icon: '⚖️', services_count: 32, created: '', updated: '', collectionId: '', collectionName: '' },
+  { id: 'cat-3', name: 'Home Services', description: 'Home improvement and maintenance', icon: '🏠', services_count: 78, created: '', updated: '', collectionId: '', collectionName: '' },
+  { id: 'cat-4', name: 'Health & Fitness', description: 'Health and wellness services', icon: '💪', services_count: 56, created: '', updated: '', collectionId: '', collectionName: '' },
+  { id: 'cat-5', name: 'Technology', description: 'Tech and digital services', icon: '💻', services_count: 67, created: '', updated: '', collectionId: '', collectionName: '' },
+  { id: 'cat-6', name: 'Education', description: 'Tutoring and training services', icon: '📚', services_count: 41, created: '', updated: '', collectionId: '', collectionName: '' }
 ];
 
 const MOCK_REVIEWS: ServiceReview[] = [
-  { id: 'rev-1', service_id: 'svc-1', user_id: 'user-1', user_name: 'Mike T.', rating: 5, comment: 'Excellent service! Saved me thousands on taxes.', created: '2024-02-01T00:00:00Z' },
-  { id: 'rev-2', service_id: 'svc-1', user_id: 'user-2', user_name: 'Lisa R.', rating: 5, comment: 'Very professional and knowledgeable.', created: '2024-02-05T00:00:00Z' },
-  { id: 'rev-3', service_id: 'svc-2', user_id: 'user-3', user_name: 'David K.', rating: 4, comment: 'Great legal advice for my startup.', created: '2024-02-03T00:00:00Z' }
+  { id: 'rev-1', service_id: 'svc-1', user_id: 'user-1', user_name: 'Mike T.', rating: 5, comment: 'Excellent service! Saved me thousands on taxes.', created: '2024-02-01T00:00:00Z', updated: '', collectionId: '', collectionName: '' },
+  { id: 'rev-2', service_id: 'svc-1', user_id: 'user-2', user_name: 'Lisa R.', rating: 5, comment: 'Very professional and knowledgeable.', created: '2024-02-05T00:00:00Z', updated: '', collectionId: '', collectionName: '' },
+  { id: 'rev-3', service_id: 'svc-2', user_id: 'user-3', user_name: 'David K.', rating: 4, comment: 'Great legal advice for my startup.', created: '2024-02-03T00:00:00Z', updated: '', collectionId: '', collectionName: '' }
 ];
 
 const MOCK_BOOKINGS: ServiceBooking[] = [
-  { id: 'book-1', service_id: 'svc-1', user_id: 'user-1', provider_id: 'provider-1', date: '2024-03-01', time: '10:00', duration: 60, status: 'Confirmed', price: 150, created: '2024-02-15T00:00:00Z' },
-  { id: 'book-2', service_id: 'svc-4', user_id: 'user-1', provider_id: 'provider-4', date: '2024-03-05', time: '14:00', duration: 45, status: 'Pending', price: 75, notes: 'First session', created: '2024-02-18T00:00:00Z' }
+  { id: 'book-1', service_id: 'svc-1', user_id: 'user-1', provider_id: 'provider-1', date: '2024-03-01', time: '10:00', duration: 60, status: 'Confirmed', price: 150, created: '2024-02-15T00:00:00Z', updated: '', collectionId: '', collectionName: '' },
+  { id: 'book-2', service_id: 'svc-4', user_id: 'user-1', provider_id: 'provider-4', date: '2024-03-05', time: '14:00', duration: 45, status: 'Pending', price: 75, notes: 'First session', created: '2024-02-18T00:00:00Z', updated: '', collectionId: '', collectionName: '' }
 ];
 
 export const professionalService = {
@@ -196,13 +215,13 @@ export const professionalService = {
       };
     } catch (error) {
       console.error('Error fetching services:', error);
-      
-      return { 
-          page: 1,
-          perPage: 50,
-          totalItems: 0,
-          totalPages: 0,
-          items: [] 
+
+      return {
+        page: 1,
+        perPage: 50,
+        totalItems: 0,
+        totalPages: 0,
+        items: []
       };
     }
   },
@@ -293,7 +312,10 @@ export const professionalService = {
         availability: 'Available',
         experience_years: data.experience_years,
         certifications: data.certifications,
-        created: new Date().toISOString()
+        created: new Date().toISOString(),
+        updated: '',
+        collectionId: '',
+        collectionName: ''
       };
       MOCK_SERVICES.push(newService);
       return Ok(newService);
@@ -324,15 +346,18 @@ export const professionalService = {
       const service = MOCK_SERVICES.find(s => s.id === id);
       if (service) {
         Object.assign(service, data);
+        return Ok(service);
       }
-      return service || null;
+      return Err(new NotFoundError('Service not found'));
     }
 
     try {
-      return await pb.collection('services').update<ServiceOffering>(id, data);
+      const pb = pocketBaseClient.getRawClient();
+      const result = await pb.collection('services').update<ServiceOffering>(id, data);
+      return Ok(result);
     } catch (error) {
       console.error('Error updating service:', error);
-      return null;
+      return Err(new AppError('Update failed', 'UPDATE_FAILED', 500));
     }
   },
 
@@ -413,10 +438,13 @@ export const professionalService = {
         user_name: data.user_name || 'Anonymous',
         rating: data.rating || 5,
         comment: data.comment || '',
-        created: new Date().toISOString()
+        created: new Date().toISOString(),
+        updated: '',
+        collectionId: '',
+        collectionName: ''
       };
       MOCK_REVIEWS.push(newReview);
-      
+
       // Update service rating
       const service = MOCK_SERVICES.find(s => s.id === data.service_id);
       if (service) {
@@ -424,7 +452,7 @@ export const professionalService = {
         service.reviews_count = serviceReviews.length;
         service.rating = serviceReviews.reduce((sum, r) => sum + r.rating, 0) / serviceReviews.length;
       }
-      
+
       return Ok(newReview);
     }
 
@@ -485,7 +513,10 @@ export const professionalService = {
         status: 'Pending',
         notes: data.notes,
         price: data.price || 0,
-        created: new Date().toISOString()
+        created: new Date().toISOString(),
+        updated: '',
+        collectionId: '',
+        collectionName: ''
       };
       MOCK_BOOKINGS.push(newBooking);
       return Ok(newBooking);
@@ -580,6 +611,7 @@ export const professionalService = {
     }
 
     try {
+      const pb = pocketBaseClient.getRawClient();
       const [services, categories, reviews] = await Promise.all([
         pb.collection('services').getFullList<ServiceOffering>(),
         pb.collection('service_categories').getFullList<ServiceCategory>(),
@@ -593,7 +625,7 @@ export const professionalService = {
         average_rating: services.length > 0
           ? services.reduce((sum, s) => sum + s.rating, 0) / services.length
           : 0,
-        top_category: categories.sort((a, b) => b.services_count - a.services_count)[0]?.name || 'None'
+        top_category: categories.sort((a: ServiceCategory, b: ServiceCategory) => b.services_count - a.services_count)[0]?.name || 'None'
       };
     } catch (error) {
       console.error('Error fetching service stats:', error);

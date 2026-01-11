@@ -12,6 +12,23 @@ export interface UserProfileData {
     verified: boolean;
     createdAt: string;
     updatedAt: string;
+    tenantId?: string;
+}
+
+export interface Tenant {
+    id: string;
+    name: string;
+    domain?: string;
+    status: 'active' | 'inactive' | 'suspended';
+    created: string;
+    updated: string;
+    [key: string]: any;
+}
+
+export type UserRole = 'Owner' | 'SchoolAdmin' | 'Teacher' | 'Student' | 'Parent' | 'Individual';
+
+export interface User extends UserProfileData {
+    role: UserRole | string;
 }
 
 export interface UserActivityData {
@@ -72,8 +89,15 @@ export interface UserExportData {
     }>;
     metadata: {
         totalRecords: number;
+        collectionCount: number;
         collections: string[];
         format: string;
         exportedAt: string;
     };
+    collections: Record<string, unknown[]>;
+    // Settings & Preferences
+    account?: any;
+    theme?: any;
+    notifications?: any;
+    privacy?: any;
 }

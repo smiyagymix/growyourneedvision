@@ -596,7 +596,7 @@ class SchoolFinanceService {
             }
 
             const record = await response.json();
-            await auditLog.log('finance.invoice_status_update', { invoice_id: invoiceId, status, paidAmount }, 'info');
+            await auditLog.log('finance.invoice_status_update', { invoice_id: invoiceId, status, paidAmount: paidAmount ?? null }, 'info');
             return record;
         });
     }

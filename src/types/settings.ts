@@ -54,22 +54,7 @@ export interface PluginConfig {
   timeout?: number;
 }
 
-export interface WebhookPayload {
-  event: string;
-  timestamp: string;
-  data: {
-    id: string;
-    type: string;
-    attributes: {
-      [key: string]: string | number | boolean | null;
-    };
-  };
-  metadata?: {
-    sourceIp?: string;
-    userAgent?: string;
-    retryCount?: number;
-  };
-}
+
 
 export interface ComplianceMetadata {
   gdprConsent?: boolean;

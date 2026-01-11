@@ -5,8 +5,8 @@
 
 import pb from '../lib/pocketbase';
 import { isMockEnv } from '../utils/mockData';
-import { logAudit } from './auditAdminService';
-import { sendTenantWelcomeEmail, sendAccountSuspendedEmail } from './emailTemplateService';
+import { auditLogger } from './auditLogger';
+import { emailTemplateService } from './emailTemplateService';
 
 export interface BulkOperationResult {
     success: boolean;
@@ -48,7 +48,7 @@ export async function bulkSuspendTenants(
     for (const tenantId of tenantIds) {
         try {
             const tenant = await pb.collection('tenants').getOne(tenantId);
-            
+
             await pb.collection('tenants').update(tenantId, {
                 status: 'suspended',
                 suspended_at: new Date().toISOString(),
@@ -57,14 +57,17 @@ export async function bulkSuspendTenants(
             });
 
             // Log audit
-            await logAudit({
+            await auditLogger.log({
                 action: 'tenant.suspended',
-                resourceType: 'tenant',
-                resourceId: tenantId,
-                tenantId,
-                userId,
-                metadata: { reason, previous_status: tenant.status },
-                severity: 'medium'
+                resource_type: 'tenant',
+                resource_id: tenantId,
+                severity: 'info', // severity map: medium -> info/warning?
+                metadata: {
+                    reason,
+                    previous_status: tenant.status,
+                    tenantId,
+                    userId
+                }
             });
 
             results.push({
@@ -120,7 +123,7 @@ export async function bulkActivateTenants(
     for (const tenantId of tenantIds) {
         try {
             const tenant = await pb.collection('tenants').getOne(tenantId);
-            
+
             await pb.collection('tenants').update(tenantId, {
                 status: 'active',
                 suspended_at: null,
@@ -130,14 +133,16 @@ export async function bulkActivateTenants(
             });
 
             // Log audit
-            await logAudit({
+            await auditLogger.log({
                 action: 'tenant.activated',
-                resourceType: 'tenant',
-                resourceId: tenantId,
-                tenantId,
-                userId,
-                metadata: { previous_status: tenant.status },
-                severity: 'low'
+                resource_type: 'tenant',
+                resource_id: tenantId,
+                severity: 'info',
+                metadata: {
+                    previous_status: tenant.status,
+                    tenantId,
+                    userId
+                }
             });
 
             results.push({
@@ -194,7 +199,7 @@ export async function bulkUpdateTenantPlan(
     for (const tenantId of tenantIds) {
         try {
             const tenant = await pb.collection('tenants').getOne(tenantId);
-            
+
             await pb.collection('tenants').update(tenantId, {
                 plan: newPlan,
                 plan_updated_at: new Date().toISOString(),
@@ -202,17 +207,17 @@ export async function bulkUpdateTenantPlan(
             });
 
             // Log audit
-            await logAudit({
+            await auditLogger.log({
                 action: 'tenant.plan_updated',
-                resourceType: 'tenant',
-                resourceId: tenantId,
-                tenantId,
-                userId,
-                metadata: { 
+                resource_type: 'tenant',
+                resource_id: tenantId,
+                severity: 'info',
+                metadata: {
                     previous_plan: tenant.plan,
-                    new_plan: newPlan
-                },
-                severity: 'low'
+                    new_plan: newPlan,
+                    tenantId,
+                    userId
+                }
             });
 
             results.push({
@@ -269,7 +274,7 @@ export async function bulkArchiveTenants(
     for (const tenantId of tenantIds) {
         try {
             const tenant = await pb.collection('tenants').getOne(tenantId);
-            
+
             await pb.collection('tenants').update(tenantId, {
                 status: 'cancelled',
                 archived: true,
@@ -278,19 +283,19 @@ export async function bulkArchiveTenants(
                 updated: new Date().toISOString()
             });
 
-            // Log audit with high severity
-            await logAudit({
+            // Log audit
+            await auditLogger.log({
                 action: 'tenant.archived',
-                resourceType: 'tenant',
-                resourceId: tenantId,
-                tenantId,
-                userId,
-                metadata: { 
+                resource_type: 'tenant',
+                resource_id: tenantId,
+                severity: 'warning',
+                metadata: {
                     reason,
                     previous_status: tenant.status,
-                    tenant_name: tenant.name
-                },
-                severity: 'high'
+                    tenant_name: tenant.name,
+                    tenantId,
+                    userId
+                }
             });
 
             results.push({
@@ -351,7 +356,7 @@ export async function bulkNotifyTenants(
     for (const tenantId of tenantIds) {
         try {
             const tenant = await pb.collection('tenants').getOne(tenantId);
-            
+
             // Get tenant admin users
             const admins = await pb.collection('users').getFullList({
                 filter: `tenantId = "${tenantId}" && role = "SchoolAdmin"`,
@@ -372,17 +377,17 @@ export async function bulkNotifyTenants(
             }
 
             // Log audit
-            await logAudit({
+            await auditLogger.log({
                 action: 'tenant.notification_sent',
-                resourceType: 'tenant',
-                resourceId: tenantId,
-                tenantId,
-                userId,
-                metadata: { 
+                resource_type: 'tenant',
+                resource_id: tenantId,
+                severity: 'info',
+                metadata: {
                     notification,
-                    recipient_count: admins.length
-                },
-                severity: 'low'
+                    recipient_count: admins.length,
+                    tenantId,
+                    userId
+                }
             });
 
             results.push({
@@ -435,15 +440,15 @@ export async function getBulkTenantHealth(tenantIds: string[]): Promise<Record<s
 
             // Calculate basic health score
             let score = 50; // Base score
-            
+
             // Status factor
             if (tenant.status === 'active') score += 30;
             else if (tenant.status === 'trial') score += 20;
-            
+
             // User activity factor
             if (users.length > 0) score += 10;
             if (users.length > 10) score += 10;
-            
+
             healthScores[tenantId] = Math.min(100, score);
         } catch (error) {
             console.error(`Failed to calculate health for tenant ${tenantId}:`, error);

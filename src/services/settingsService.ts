@@ -1,6 +1,10 @@
 import pb from '../lib/pocketbase';
 import { RecordModel } from 'pocketbase';
 import { isMockEnv } from '../utils/mockData';
+import env from '../config/environment';
+import { Result, Ok, Err } from '../lib/types';
+import { AppError } from './errorHandler';
+import { UserExportData } from '../types/userData';
 
 export interface AccountSettings {
     id?: string;
@@ -531,16 +535,26 @@ export const settingsService = {
     // Export Data
     exportUserData: async (userId: string): Promise<Result<{ data: UserExportData }, AppError>> => {
         if (isMockEnv()) {
-            return {
-                success: true,
+            return Ok({
                 data: {
+                    profile: { id: userId, name: 'Mock User', email: 'mock@example.com', role: 'User', verified: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+                    activities: [],
+                    messages: [],
+                    documents: [],
+                    collections: {
+                        account: [MOCK_ACCOUNT_SETTINGS],
+                        theme: [MOCK_THEME_SETTINGS],
+                        notifications: [MOCK_NOTIFICATION_SETTINGS],
+                        privacy: [MOCK_PRIVACY_SETTINGS]
+                    },
+                    metadata: { totalRecords: 0, collectionCount: 4, collections: ['account', 'theme', 'notifications', 'privacy'], format: 'json', exportedAt: new Date().toISOString() },
+                    // Settings & Preferences
                     account: MOCK_ACCOUNT_SETTINGS,
                     theme: MOCK_THEME_SETTINGS,
                     notifications: MOCK_NOTIFICATION_SETTINGS,
-                    privacy: MOCK_PRIVACY_SETTINGS,
-                    exportDate: new Date().toISOString()
+                    privacy: MOCK_PRIVACY_SETTINGS
                 }
-            };
+            });
         }
 
         try {
@@ -551,18 +565,28 @@ export const settingsService = {
                 settingsService.getPrivacySettings(userId)
             ]);
 
-            return {
-                success: true,
+            return Ok({
                 data: {
+                    profile: { id: userId, name: String(account?.name || ''), email: String(account?.email || ''), role: 'User', verified: true, createdAt: String(account?.created || ''), updatedAt: String(account?.updated || '') },
+                    activities: [],
+                    messages: [],
+                    documents: [],
+                    collections: {
+                        account: [account],
+                        theme: [theme],
+                        notifications: [notifications],
+                        privacy: [privacy]
+                    },
+                    metadata: { totalRecords: 0, collectionCount: 4, collections: ['account', 'theme', 'notifications', 'privacy'], format: 'json', exportedAt: new Date().toISOString() },
+                    // Settings & Preferences
                     account,
                     theme,
                     notifications,
-                    privacy,
-                    exportDate: new Date().toISOString()
+                    privacy
                 }
-            };
-        } catch {
-            return { success: false };
+            });
+        } catch (error) {
+            return Err(new AppError('Export failed', 'EXPORT_FAILED', 500));
         }
     },
 
