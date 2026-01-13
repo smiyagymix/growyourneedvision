@@ -74,6 +74,10 @@ export * from './useKeyboardShortcuts';
 export * from './useMarketingRealtime';
 export { useMessages, type Message as ConversationMessage } from './useMessages';
 export * from './useNotifications';
+
+// Service Hooks (Production)
+export { useGrades } from './useGrades';
+export { useAttendance } from './useAttendance';
 export * from './useOwnerAnalytics';
 export * from './useOwnerDashboard';
 export * from './usePhase2Data';

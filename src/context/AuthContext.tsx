@@ -96,7 +96,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             throw new Error(errorMsg);
           }
         } catch (e) {
-          console.warn("Rate limit check failed, proceeding anyway...", e);
+          // Only throw if it's an actual rate limit block, not a network error
+          if (e instanceof Error && e.message.includes('Too many attempts')) {
+            throw e;
+          }
+          // Log warning but don't block on service unavailability
+          console.warn("Rate limit check unavailable (proceeding anyway):", e instanceof Error ? e.message : e);
         }
       }
 

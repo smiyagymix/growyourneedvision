@@ -1,5 +1,6 @@
 import pb from '../lib/pocketbase';
 import { RecordModel } from 'pocketbase';
+import { z } from 'zod';
 
 /**
  * Universal File Upload Service
@@ -14,8 +15,43 @@ export interface UploadProgress {
 
 export interface UploadResult {
     success: boolean;
-    record?: RecordModel;
+    record?: FileUploadRecord;
     error?: string;
+}
+
+export interface FileUploadRecord extends RecordModel {
+    id: string;
+    name: string;
+    size: number;
+    uploaded_by?: string;
+    course_id?: string;
+    assignment_id?: string;
+    student_id?: string;
+    file?: string | string[];
+    created: string;
+    updated: string;
+}
+
+const fileUploadSchema = z.object({
+    id: z.string(),
+    collectionId: z.string().optional(),
+    collectionName: z.string().optional(),
+    name: z.string(),
+    size: z.coerce.number(),
+    uploaded_by: z.string().optional(),
+    course_id: z.string().optional(),
+    assignment_id: z.string().optional(),
+    student_id: z.string().optional(),
+    file: z.union([z.string(), z.array(z.string())]).optional(),
+    created: z.string(),
+    updated: z.string()
+});
+
+function parseFileUpload(record: unknown): FileUploadRecord | null {
+    const parsed = fileUploadSchema.safeParse(record);
+    if (parsed.success) return parsed.data as FileUploadRecord;
+    console.error('fileUploadService: failed to parse file upload record', parsed.error, record);
+    return null;
 }
 
 class FileUploadService {
@@ -33,10 +69,10 @@ class FileUploadService {
             formData.append(fieldName, file);
 
             const record = await pb.collection(collection).update(recordId, formData);
-
+            const parsed = parseFileUpload(record);
             return {
                 success: true,
-                record
+                record: parsed ?? undefined
             };
         } catch (error) {
             console.error('File upload failed:', error);
@@ -75,10 +111,10 @@ class FileUploadService {
             });
 
             const record = await pb.collection('file_uploads').create(formData);
-
+            const parsed = parseFileUpload(record);
             return {
                 success: true,
-                record
+                record: parsed ?? undefined
             };
         } catch (error) {
             console.error('File creation failed:', error);
@@ -103,10 +139,10 @@ class FileUploadService {
             files.forEach(file => formData.append(fieldName, file));
 
             const record = await pb.collection(collection).update(recordId, formData);
-
+            const parsed = parseFileUpload(record);
             return {
                 success: true,
-                record
+                record: parsed ?? undefined
             };
         } catch (error) {
             console.error('Multiple file upload failed:', error);
@@ -138,10 +174,10 @@ class FileUploadService {
             const record = await pb.collection(collection).update(recordId, {
                 [fieldName]: null
             });
-
+            const parsed = parseFileUpload(record);
             return {
                 success: true,
-                record
+                record: parsed ?? undefined
             };
         } catch (error) {
             console.error('File deletion failed:', error);

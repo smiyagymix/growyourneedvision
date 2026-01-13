@@ -3,7 +3,8 @@
  * Manages the 5-level intelligence framework for AI responses
  */
 
-import { pocketBaseClient } from '../lib/pocketbase';
+import pb from '../lib/pocketbase';
+import { z } from 'zod';
 import { createTypedCollection } from '../lib/pocketbase-types';
 import { isMockEnv } from '../utils/mockData';
 import { RecordModel } from 'pocketbase';
@@ -27,6 +28,42 @@ export interface IntelligenceFile extends RecordModel {
     processed_at?: string;
     created: string;
     updated: string;
+}
+
+// Zod schema to validate and coerce PocketBase records into strongly typed IntelligenceFile
+const intelligenceFileSchema = z.object({
+    id: z.string(),
+    collectionId: z.string().optional(),
+    collectionName: z.string().optional(),
+    level: z.coerce.number().int().min(1).max(5).transform(n => n as 1|2|3|4|5),
+    file_name: z.string(),
+    file_path: z.string(),
+    file_size: z.coerce.number(),
+    status: z.enum(['uploaded','processing','ready','error']),
+    token_count: z.coerce.number().optional(),
+    chunk_count: z.coerce.number().optional(),
+    embedding_status: z.enum(['pending','processing','complete','error']).optional(),
+    metadata: z.object({
+        content_type: z.string().optional(),
+        pages: z.coerce.number().optional(),
+        language: z.string().optional(),
+        processed_at: z.string().optional()
+    }).optional(),
+    error_message: z.string().optional(),
+    processed_at: z.string().optional(),
+    created: z.string(),
+    updated: z.string()
+});
+
+const intelligenceFileArraySchema = z.array(intelligenceFileSchema);
+
+function parseIntelligenceFile(record: unknown): IntelligenceFile | null {
+    try {
+        return intelligenceFileSchema.parse(record) as IntelligenceFile;
+    } catch (err) {
+        console.error('aiIntelligenceService: failed to parse record as IntelligenceFile', err, record);
+        return null;
+    }
 }
 
 export interface IntelligenceLevelInfo {
@@ -224,7 +261,8 @@ class AIIntelligenceService {
                 sort: '-created',
                 requestKey: null
             });
-            return files as unknown as IntelligenceFile[];
+            const parsed = files.map(parseIntelligenceFile).filter((f): f is IntelligenceFile => f !== null);
+            return parsed;
         } catch (error) {
             console.error(`Error fetching files for level ${level}:`, error);
             return [];
@@ -244,7 +282,8 @@ class AIIntelligenceService {
                 sort: 'level,-created',
                 requestKey: null
             });
-            return files as unknown as IntelligenceFile[];
+            const parsed = files.map(parseIntelligenceFile).filter((f): f is IntelligenceFile => f !== null);
+            return parsed;
         } catch (error) {
             console.error('Error fetching all intelligence files:', error);
             return [];
@@ -263,7 +302,7 @@ class AIIntelligenceService {
             const file = await pb.collection(this.collection).getOne(fileId, {
                 requestKey: null
             });
-            return file as unknown as IntelligenceFile;
+            return parseIntelligenceFile(file);
         } catch (error) {
             console.error(`Error fetching file ${fileId}:`, error);
             return null;
@@ -350,7 +389,8 @@ class AIIntelligenceService {
             // Trigger async processing
             this.processFile(newFile.id).catch(console.error);
 
-            return { success: true, file: newFile as unknown as IntelligenceFile };
+            const parsed = parseIntelligenceFile(newFile);
+            return { success: true, file: parsed ?? undefined };
         } catch (error) {
             console.error('Error uploading file:', error);
             return { 
@@ -609,7 +649,8 @@ class AIIntelligenceService {
                 sort: '-created',
                 requestKey: null
             });
-            return files as unknown as IntelligenceFile[];
+            const parsed = files.map(parseIntelligenceFile).filter((f): f is IntelligenceFile => f !== null);
+            return parsed;
         } catch (error) {
             console.error('Error fetching error files:', error);
             return [];
@@ -631,7 +672,8 @@ class AIIntelligenceService {
                 sort: '-created',
                 requestKey: null
             });
-            return files as unknown as IntelligenceFile[];
+            const parsed = files.map(parseIntelligenceFile).filter((f): f is IntelligenceFile => f !== null);
+            return parsed;
         } catch (error) {
             console.error('Error searching files:', error);
             return [];

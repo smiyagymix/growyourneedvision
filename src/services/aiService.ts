@@ -1,5 +1,6 @@
 import { RecordModel } from 'pocketbase';
 import pb from '../lib/pocketbase';
+import { z } from 'zod';
 
 export interface DealContext {
     title?: string;
@@ -88,9 +89,11 @@ class AIService {
         }
     }
 
-    private formatPromptWithContext(prompt: string, context?: AIContextData): string {
+    private formatPromptWithContext(prompt: string, context?: AIContext): string {
         if (!context) return prompt;
-        return `${prompt}\n\nContext Data:\n${JSON.stringify(context, null, 2)}`;
+        // Normalize context to a serializable object
+        const normalized: Record<string, unknown> = { ...context };
+        return `${prompt}\n\nContext Data:\n${JSON.stringify(normalized, null, 2)}`;
     }
 
     /**
@@ -153,20 +156,38 @@ class AIService {
         try {
             // Fetch real stats from PocketBase
             const stats = await pb.collection('ai_stats').getList(1, 1, {
-                sort: '-date'
+                sort: '-date',
+                requestKey: null
+            });
+
+            // Validate the returned record
+            const aiStatSchema = z.object({
+                id: z.string(),
+                collectionId: z.string().optional(),
+                collectionName: z.string().optional(),
+                date: z.string().optional(),
+                avg_latency: z.coerce.number().optional(),
+                error_count: z.coerce.number().optional(),
+                total_requests: z.coerce.number().optional(),
+                total_tokens: z.coerce.number().optional()
             });
 
             if (stats.items.length > 0) {
-                const latest = stats.items[0];
-                return {
-                    latency: `${latest.avg_latency}ms`,
-                    error_rate: `${latest.error_count > 0 ? ((latest.error_count / latest.total_requests) * 100).toFixed(2) : 0}%`,
-                    load: latest.total_requests > 1000 ? 'High' : 'Normal',
-                    tokens_total: (latest.total_tokens / 1000).toFixed(1) + 'k',
-                    tokens_input: '0', // Not tracked separately in simple stats yet
-                    tokens_output: '0',
-                    provider: this.apiKey ? 'OpenAI (GPT-4)' : 'Local Heuristic Engine'
-                };
+                const parsed = aiStatSchema.safeParse(stats.items[0]);
+                if (parsed.success) {
+                    const latest = parsed.data;
+                    return {
+                        latency: `${latest.avg_latency ?? 0}ms`,
+                        error_rate: `${latest.error_count && latest.total_requests ? ((latest.error_count / latest.total_requests) * 100).toFixed(2) : '0.00'}%`,
+                        load: (latest.total_requests ?? 0) > 1000 ? 'High' : 'Normal',
+                        tokens_total: ((latest.total_tokens ?? 0) / 1000).toFixed(1) + 'k',
+                        tokens_input: '0',
+                        tokens_output: '0',
+                        provider: this.apiKey ? 'OpenAI (GPT-4)' : 'Local Heuristic Engine'
+                    };
+                } else {
+                    console.warn('aiService: ai_stats record failed validation, using fallback', parsed.error);
+                }
             }
         } catch (error) {
             console.warn('Failed to fetch AI stats from DB, using fallback');

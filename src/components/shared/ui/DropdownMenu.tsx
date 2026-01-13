@@ -29,7 +29,7 @@ export const DropdownMenu: React.FC<DropdownMenuProps> = ({ trigger, items, alig
 
       {isOpen && (
         <div 
-            className={`absolute z-50 mt-2 w-56 rounded-xl bg-white shadow-2xl ring-1 ring-black ring-opacity-5 focus:outline-none animate-scaleIn ${align === 'right' ? 'right-0' : 'left-0'}`}
+          className={`absolute z-50 mt-2 w-56 rounded-xl bg-gyn-blue-dark shadow-2xl ring-1 ring-black ring-opacity-5 focus:outline-none animate-scaleIn ${align === 'right' ? 'right-0' : 'left-0'}`}
         >
           <div className="py-1 p-1">
             {items.map((item, index) => (
@@ -37,8 +37,8 @@ export const DropdownMenu: React.FC<DropdownMenuProps> = ({ trigger, items, alig
                 type="button"
                 key={index}
                 onClick={() => {
-                    item.onClick();
-                    setIsOpen(false);
+                  item.onClick();
+                  setIsOpen(false);
                 }}
                 className={`group flex w-full items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${item.danger ? 'text-red-600 hover:bg-red-50' : 'text-gray-700 hover:bg-gray-100 hover:text-gyn-blue-dark'}`}
               >

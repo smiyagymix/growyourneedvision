@@ -5,7 +5,8 @@ import { isMockEnv } from '../utils/mockData';
 
 // Lightweight canned data to keep UIs rendering in e2e/mock environments
 // when PocketBase is unavailable. Add more collections here as needed.
-const MOCK_COLLECTIONS: Record<string, any[]> = {
+type MockRow = Record<string, string | number | boolean>;
+const MOCK_COLLECTIONS: Record<string, MockRow[]> = {
     crm_inquiries: [
         { id: 'inq1', collectionId: 'mock', collectionName: 'crm_inquiries', created: new Date().toISOString(), updated: new Date().toISOString(), name: 'Taylor Morgan', email: 'taylor@example.com', grade_interest: 'Grade 9', status: 'New Inquiry', source: 'Website' },
         { id: 'inq2', collectionId: 'mock', collectionName: 'crm_inquiries', created: new Date().toISOString(), updated: new Date().toISOString(), name: 'Jordan Lee', email: 'jordan@example.com', grade_interest: 'Grade 10', status: 'Contacted', source: 'Open House' },
@@ -48,8 +49,7 @@ export interface DataQueryResult<T> {
     refresh: () => Promise<void>;
     exportData: (filename?: string) => Promise<void>;
 }
-
-export function useDataQuery<T = any>(
+export function useDataQuery<T>(
     collectionName: string, 
     initialOptions: DataQueryOptions = {}
 ): DataQueryResult<T> {
@@ -80,35 +80,37 @@ export function useDataQuery<T = any>(
         setError(null);
 
         // Short-circuit with mock data when in e2e/mock environments
-        if (isMockEnv() && MOCK_COLLECTIONS[collectionName]) {
-            const mockItems = MOCK_COLLECTIONS[collectionName];
-            setItems(mockItems);
-            setTotalItems(mockItems.length);
-            setTotalPages(1);
-            setLoading(false);
-            return;
-        }
+            if (isMockEnv() && MOCK_COLLECTIONS[collectionName]) {
+                const mockItems = MOCK_COLLECTIONS[collectionName];
+                // Deep-clone and coerce to T[] to avoid type mismatches between MockRow and T
+                setItems(JSON.parse(JSON.stringify(mockItems)) as T[]);
+                setTotalItems(mockItems.length);
+                setTotalPages(1);
+                setLoading(false);
+                return;
+            }
 
         try {
-            const listOptions: any = {
+            const listOptions: DataQueryOptions = {
                 sort,
                 expand: initialOptions.expand,
                 fields: initialOptions.fields,
-                requestKey: initialOptions.requestKey ?? null // Allow override
+                requestKey: initialOptions.requestKey ?? null
             };
 
             if (debouncedFilter && debouncedFilter.trim().length > 0) {
                 listOptions.filter = debouncedFilter.trim();
             }
 
-            const result = await pb.collection(collectionName).getList<T>(page, perPage, listOptions);
-            
+            const result: ListResult<T> = await pb.collection(collectionName).getList<T>(page, perPage, listOptions as any);
+
             setItems(result.items);
             setTotalItems(result.totalItems);
             setTotalPages(result.totalPages);
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error(`Error fetching data from ${collectionName}:`, err);
-            setError(err);
+            const message = err instanceof Error ? err.message : 'Unknown error fetching data';
+            setError(new Error(message));
             setItems([]);
         } finally {
             setLoading(false);

@@ -301,7 +301,9 @@ return Ok<GDPRExportData, AppError>({
   status: 'completed',
   downloadUrl,
   expiresAt,
-});export interface GDPRExportData extends RecordModel {
+});
+
+export interface GDPRExportData extends RecordModel {
   exportId: string;
   userId: string;
   requestedAt: string;

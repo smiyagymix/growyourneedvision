@@ -1,38 +1,62 @@
+/**
+ * Attendance Service - Complete Attendance Tracking and Reporting
+ * Handles attendance marking, reporting, and analytics with full production workflow
+ */
+
 import pb from '../lib/pocketbase';
 import { RecordModel } from 'pocketbase';
-import { isMockEnv } from '../utils/mockData';
-import { auditLog } from './auditLogger';
+import { Logger } from '../utils/logging';
+import { ErrorFactory, normalizeError } from '../utils/errorHandling';
+import { z } from 'zod';
+
+// ============================================================================
+// TYPES AND SCHEMAS
+// ============================================================================
+
+export type AttendanceStatus = 'present' | 'absent' | 'late' | 'excused';
 
 export interface AttendanceRecord extends RecordModel {
-    student: string;
-    class: string;
-    date: string;
-    status: 'Present' | 'Absent' | 'Late' | 'Excused';
-    marked_by?: string;
-    notes?: string;
-    arrival_time?: string;
-    departure_time?: string;
-    expand?: {
-        student?: RecordModel & { name?: string; email?: string };
-        class?: RecordModel & { name?: string; code?: string };
-        marked_by?: RecordModel & { name?: string };
-    }
+  courseId: string;
+  studentId: string;
+  tenantId: string;
+  date: string;
+  status: AttendanceStatus;
+  notes?: string;
+  markedBy: string;
+  markedAt: string;
+  arrivalTime?: string;
+  departureTime?: string;
+  created: string;
+  updated: string;
 }
 
 export interface AttendanceStats {
-    present: number;
-    absent: number;
-    late: number;
-    excused: number;
-    attendanceRate: number;
-    totalDays: number;
+  present: number;
+  absent: number;
+  late: number;
+  excused: number;
+  attendanceRate: number;
+  totalDays: number;
 }
 
 export interface SchoolClass extends RecordModel {
-    name: string;
-    code: string;
-    tenantId: string;
+  name: string;
+  code: string;
+  tenantId: string;
 }
+
+// Zod schemas
+const AttendanceCreateSchema = z.object({
+  courseId: z.string().min(1),
+  studentId: z.string().min(1),
+  tenantId: z.string().min(1),
+  date: z.string().date('Invalid date'),
+  status: z.enum(['present', 'absent', 'late', 'excused']),
+  notes: z.optional(z.string().max(500)),
+  markedBy: z.string().min(1),
+  arrivalTime: z.optional(z.string().time()),
+  departureTime: z.optional(z.string().time()),
+});
 
 const MOCK_ATTENDANCE: AttendanceRecord[] = [
     {

@@ -183,12 +183,12 @@ const OwnerHeader: React.FC<HeaderProps> = ({ activeTab, onTabChange, tabs, role
                 </button>
 
                 {isMessagesOpen && (
-                    <div className="absolute right-0 mt-4 w-80 bg-white/90 dark:bg-material-gunmetal/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/50 dark:border-hud-primary/30 overflow-hidden z-50 animate-fadeIn origin-top-right ring-1 ring-black/5 dark:ring-hud-primary/20">
-                        <div className="bg-gradient-to-r from-gyn-blue-dark to-gyn-blue-medium dark:from-material-obsidian dark:to-material-gunmetal p-4 text-white flex justify-between items-center shadow-md border-b border-white/10">
-                            <span className="font-bold text-sm tracking-wide text-white dark:text-hud-primary">MESSAGES</span>
-                            <span className="bg-white/20 dark:bg-hud-primary/20 text-[10px] px-2 py-0.5 rounded-full backdrop-blur-sm font-mono text-white dark:text-hud-primary">{messages.length}</span>
+                    <div className="absolute right-0 mt-4 w-80 bg-[#0f2a6b] text-white rounded-2xl shadow-2xl border border-white/20 overflow-hidden z-50 animate-fadeIn origin-top-right">
+                        <div className="p-4 text-white flex justify-between items-center shadow-md border-b border-white/10 bg-[#0d227f]">
+                            <span className="font-bold text-sm tracking-wide">MESSAGES</span>
+                            <span className="bg-white/20 text-[10px] px-2 py-0.5 rounded-full backdrop-blur-sm font-mono">{messages.length}</span>
                         </div>
-                        <div className="max-h-[350px] overflow-y-auto bg-white/50 dark:bg-transparent">
+                        <div className="max-h-[350px] overflow-y-auto bg-transparent">
                             {messages.length === 0 ? (
                                 <EmptyState title="No messages" description="Your inbox is empty." icon="Envelope" className="!p-8 !min-h-[200px] dark:text-gray-400"/>
                             ) : (
@@ -199,10 +199,10 @@ const OwnerHeader: React.FC<HeaderProps> = ({ activeTab, onTabChange, tabs, role
                                                 <img src={msg.avatar} alt={msg.sender} className="w-8 h-8 rounded-full border border-gray-200 dark:border-white/10" />
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex justify-between items-baseline mb-0.5">
-                                                        <h4 className="font-bold text-xs text-gyn-blue-dark dark:text-white truncate">{msg.sender}</h4>
+                                                        <h4 className="font-bold text-xs text-white truncate">{msg.sender}</h4>
                                                         <span className="text-[9px] text-gray-400 whitespace-nowrap ml-2">{msg.time}</span>
                                                     </div>
-                                                    <p className="text-xs text-gray-600 dark:text-gray-400 truncate">{msg.content}</p>
+                                                    <p className="text-xs text-blue-100 truncate">{msg.content}</p>
                                                 </div>
                                             </div>
                                         </div>
@@ -210,7 +210,7 @@ const OwnerHeader: React.FC<HeaderProps> = ({ activeTab, onTabChange, tabs, role
                                 </div>
                             )}
                         </div>
-                        <button className="w-full py-3 text-[10px] font-bold text-gyn-blue-medium dark:text-hud-primary border-t border-gray-100 dark:border-white/5 hover:bg-blue-50 dark:hover:bg-white/5">View All Messages</button>
+                        <button className="w-full py-3 text-[10px] font-bold text-white/80 border-t border-white/10 hover:bg-white/10">View All Messages</button>
                     </div>
                 )}
             </div>
@@ -236,13 +236,13 @@ const OwnerHeader: React.FC<HeaderProps> = ({ activeTab, onTabChange, tabs, role
                 </button>
 
                 {isNotifOpen && (
-                    <div className="absolute right-0 mt-4 w-80 bg-white/90 dark:bg-material-gunmetal/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/50 dark:border-hud-primary/30 overflow-hidden z-50 animate-fadeIn origin-top-right ring-1 ring-black/5 dark:ring-hud-primary/20">
-                        {/* Notification content... same as before */}
-                        <div className="bg-gradient-to-r from-gyn-blue-dark to-gyn-blue-medium dark:from-material-obsidian dark:to-material-gunmetal p-4 text-white flex justify-between items-center shadow-md border-b border-white/10">
-                            <span className="font-bold text-sm tracking-wide text-white dark:text-hud-primary">NOTIFICATIONS</span>
-                            <span className="bg-white/20 dark:bg-hud-primary/20 text-[10px] px-2 py-0.5 rounded-full backdrop-blur-sm font-mono text-white dark:text-hud-primary">{notifications.length}</span>
+                    <div className="absolute right-0 mt-4 w-80 bg-[#0f2a6b] text-white rounded-2xl shadow-2xl border border-white/20 overflow-hidden z-50 animate-fadeIn origin-top-right">
+                        {/* Notification content */}
+                        <div className="p-4 text-white flex justify-between items-center shadow-md border-b border-white/10 bg-[#0d227f]">
+                            <span className="font-bold text-sm tracking-wide">NOTIFICATIONS</span>
+                            <span className="bg-white/20 text-[10px] px-2 py-0.5 rounded-full backdrop-blur-sm font-mono">{notifications.length}</span>
                         </div>
-                        <div className="max-h-[350px] overflow-y-auto bg-white/50 dark:bg-transparent">
+                        <div className="max-h-[350px] overflow-y-auto bg-transparent">
                             {notifications.length === 0 ? (
                                 <EmptyState title="All caught up" description="No new notifications." icon="Bell" className="!p-8 !min-h-[200px] dark:text-gray-400"/>
                             ) : (
@@ -250,10 +250,10 @@ const OwnerHeader: React.FC<HeaderProps> = ({ activeTab, onTabChange, tabs, role
                                     {notifications.map(notif => (
                                         <div key={notif.id} className="p-4 hover:bg-blue-50/50 dark:hover:bg-white/5 transition-colors relative group">
                                             <div className="flex justify-between items-start mb-1 pr-6">
-                                                <h4 className="font-bold text-xs text-gyn-blue-dark dark:text-white">{notif.title}</h4>
+                                                <h4 className="font-bold text-xs text-white">{notif.title}</h4>
                                                 <span className="text-[9px] text-gray-400 whitespace-nowrap ml-2">{notif.time}</span>
                                             </div>
-                                            <p className="text-xs text-gray-600 dark:text-gray-400">{notif.message}</p>
+                                            <p className="text-xs text-blue-100">{notif.message}</p>
                                             <button onClick={(e) => {e.stopPropagation(); dismissNotification(notif.id)}} className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500"><OwnerIcon name="X" className="w-3 h-3" /></button>
                                         </div>
                                     ))}
@@ -261,7 +261,7 @@ const OwnerHeader: React.FC<HeaderProps> = ({ activeTab, onTabChange, tabs, role
                             )}
                         </div>
                         {notifications.length > 0 && (
-                             <button onClick={clearAll} className="w-full py-3 text-[10px] font-bold text-gyn-blue-medium dark:text-hud-primary border-t border-gray-100 dark:border-white/5 hover:bg-blue-50 dark:hover:bg-white/5">Clear All</button>
+                             <button onClick={clearAll} className="w-full py-3 text-[10px] font-bold text-white/80 border-t border-white/10 hover:bg-white/10">Clear All</button>
                         )}
                     </div>
                 )}
@@ -287,15 +287,15 @@ const OwnerHeader: React.FC<HeaderProps> = ({ activeTab, onTabChange, tabs, role
                 </div>
 
                 {isProfileOpen && (
-                    <div className="absolute right-0 mt-4 w-64 bg-material-gunmetal/95 backdrop-blur-xl rounded-xl shadow-2xl border border-hud-primary/30 z-50 animate-fadeIn origin-top-right overflow-hidden">
+                    <div className="absolute right-0 mt-4 w-64 bg-[#0f2a6b] text-white rounded-xl shadow-2xl border border-white/20 z-50 animate-fadeIn origin-top-right overflow-hidden">
                         <div className="p-4 border-b border-white/5 bg-white/5">
                             <div className="flex items-center gap-3 mb-2">
-                                <div className="w-10 h-10 rounded-full bg-material-obsidian shadow-sm flex items-center justify-center text-hud-primary font-bold text-sm border border-white/10">
+                                <div className="w-10 h-10 rounded-full bg-white/10 shadow-sm flex items-center justify-center text-white font-bold text-sm border border-white/10">
                                     {user?.name?.charAt(0) || 'G'}
                                 </div>
                                 <div>
                                     <p className="font-bold text-white text-sm">{user?.name || 'Guest User'}</p>
-                                    <p className="text-xs text-gray-400 truncate w-32">{user?.email || 'guest@growyourneed.com'}</p>
+                                    <p className="text-xs text-blue-100 truncate w-32">{user?.email || 'guest@growyourneed.com'}</p>
                                 </div>
                             </div>
                         </div>
@@ -305,10 +305,10 @@ const OwnerHeader: React.FC<HeaderProps> = ({ activeTab, onTabChange, tabs, role
                                 <button 
                                     key={index}
                                     onClick={() => { setIsProfileOpen(false); item.action(); }}
-                                    className="w-full text-left px-4 py-2.5 text-xs font-bold text-gray-300 hover:bg-white/10 hover:text-hud-primary rounded-lg transition-colors flex items-center gap-3 group"
+                                    className="w-full text-left px-4 py-2.5 text-xs font-bold text-blue-100 hover:bg-white/10 hover:text-white rounded-lg transition-colors flex items-center gap-3 group"
                                 >
                                     <div className="w-6 h-6 rounded-md bg-white/5 group-hover:bg-white/10 flex items-center justify-center transition-colors shadow-sm border border-white/5">
-                                        <OwnerIcon name={item.icon} className="w-3.5 h-3.5 text-gray-400 group-hover:text-hud-primary" />
+                                        <OwnerIcon name={item.icon} className="w-3.5 h-3.5 text-blue-200 group-hover:text-white" />
                                     </div>
                                     {item.label}
                                 </button>
@@ -316,9 +316,9 @@ const OwnerHeader: React.FC<HeaderProps> = ({ activeTab, onTabChange, tabs, role
                             <div className="h-px bg-white/5 my-1.5 mx-2"></div>
                             <button 
                                 onClick={handleLogout}
-                                className="w-full text-left px-4 py-2.5 text-xs font-bold text-red-400 hover:bg-red-900/20 rounded-lg transition-colors flex items-center gap-3 group"
+                                className="w-full text-left px-4 py-2.5 text-xs font-bold text-red-200 hover:bg-red-900/30 rounded-lg transition-colors flex items-center gap-3 group"
                             >
-                                <div className="w-6 h-6 rounded-md bg-red-900/10 group-hover:bg-red-900/20 flex items-center justify-center transition-colors shadow-sm border border-red-900/30">
+                                <div className="w-6 h-6 rounded-md bg-red-900/20 group-hover:bg-red-900/30 flex items-center justify-center transition-colors shadow-sm border border-red-900/40">
                                     <OwnerIcon name="ArrowRightIcon" className="w-3.5 h-3.5 text-red-500 rotate-180" />
                                 </div>
                                 Logout

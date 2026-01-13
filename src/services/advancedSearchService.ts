@@ -8,6 +8,7 @@
 import pb from '../lib/pocketbase';
 import * as Sentry from '@sentry/react';
 import { isMockEnv } from '../utils/mockData';
+import { z } from 'zod';
 
 export interface SearchFilter {
     field: string;
@@ -59,17 +60,62 @@ export interface SavedSearch {
     updated: string;
 }
 
+// Zod schemas for validation
+const searchFilterSchema = z.object({
+    field: z.string(),
+    operator: z.union([z.literal('eq'), z.literal('ne'), z.literal('gt'), z.literal('gte'), z.literal('lt'), z.literal('lte'), z.literal('in'), z.literal('contains'), z.literal('startsWith'), z.literal('endsWith')]),
+    value: z.any()
+});
+
+const searchQuerySchema = z.object({
+    query: z.string().optional().default(''),
+    collections: z.array(z.string()).optional(),
+    filters: z.array(searchFilterSchema).optional(),
+    sort: z.string().optional(),
+    page: z.number().optional(),
+    perPage: z.number().optional(),
+    facets: z.array(z.string()).optional(),
+    tenantId: z.string().optional()
+});
+
+const savedSearchSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    query: z.union([z.string(), searchQuerySchema]),
+    userId: z.string(),
+    isPublic: z.boolean(),
+    created: z.string(),
+    updated: z.string()
+});
+
+function parseSavedSearch(record: unknown): SavedSearch | null {
+    const parsed = savedSearchSchema.safeParse(record);
+    if (!parsed.success) {
+        console.error('advancedSearchService: failed to parse saved search', parsed.error, record);
+        return null;
+    }
+
+    // Normalize query field to SearchQuery
+    const raw = parsed.data;
+    const query = typeof raw.query === 'string' ? (() => {
+        try { return JSON.parse(raw.query as string); } catch { return { query: String(raw.query) }; }
+    })() : raw.query as SearchQuery;
+
+    const normalized = { ...raw, query } as SavedSearch;
+    return normalized;
+}
+
 // Mock data for development
 const MOCK_RESULTS: SearchResult[] = [
     {
         collection: 'tenants',
-        record: { id: '1', name: 'Acme School', plan: 'professional', status: 'active' },
+        record: { id: '1', collectionId: 'mock', collectionName: 'tenants', name: 'Acme School', plan: 'professional', status: 'active' },
         score: 0.95,
         highlights: [{ field: 'name', snippet: '<em>Acme</em> School' }]
     },
     {
         collection: 'users',
-        record: { id: '2', name: 'John Doe', email: 'john@acme.com', role: 'Teacher' },
+        record: { id: '2', collectionId: 'mock', collectionName: 'users', name: 'John Doe', email: 'john@acme.com', role: 'Teacher' },
         score: 0.87,
         highlights: [{ field: 'email', snippet: 'john@<em>acme</em>.com' }]
     }
@@ -164,11 +210,11 @@ class AdvancedSearchService {
                     const filterString = searchFilters.join(' && ');
 
                     // Execute search
-                    const records = await pb.collection(collectionName).getList(1, 100, {
-                        filter: filterString || undefined,
-                        sort,
-                        requestKey: null
-                    });
+                            const records = await pb.collection(collectionName).getList(1, 100, {
+                                filter: filterString || undefined,
+                                sort,
+                                requestKey: null
+                            });
 
                     // Calculate relevance scores and add to results
                     records.items.forEach(record => {
@@ -177,7 +223,7 @@ class AdvancedSearchService {
 
                         results.push({
                             collection: collectionName,
-                            record,
+                            record: record as SearchRecord,
                             score,
                             highlights
                         });
@@ -299,10 +345,8 @@ class AdvancedSearchService {
                 requestKey: null
             });
 
-            return records.items.map(item => ({
-                ...item,
-                query: typeof item.query === 'string' ? JSON.parse(item.query) : item.query
-            })) as unknown as SavedSearch[];
+            const parsed = records.items.map(parseSavedSearch).filter((s): s is SavedSearch => s !== null);
+            return parsed;
         } catch (error) {
             Sentry.captureException(error);
             throw error;
@@ -328,10 +372,19 @@ class AdvancedSearchService {
                 query: JSON.stringify(data.query)
             });
 
+            const parsed = parseSavedSearch(record);
+            if (parsed) return parsed;
+
+            // Fallback: normalize manually
             return {
-                ...record,
-                query: typeof record.query === 'string' ? JSON.parse(record.query) : record.query
-            } as unknown as SavedSearch;
+                id: record.id,
+                name: (record as any).name || data.name,
+                query: typeof (record as any).query === 'string' ? JSON.parse((record as any).query) : (record as any).query,
+                userId: data.userId,
+                isPublic: data.isPublic,
+                created: record.created || new Date().toISOString(),
+                updated: record.updated || new Date().toISOString()
+            } as SavedSearch;
         } catch (error) {
             Sentry.captureException(error);
             throw error;

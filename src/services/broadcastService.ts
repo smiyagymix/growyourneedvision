@@ -2,6 +2,7 @@ import pb from '../lib/pocketbase';
 import { auditLog } from './auditLogger';
 import { isMockEnv } from '../utils/mockData';
 import { RecordModel } from 'pocketbase';
+import { z } from 'zod';
 
 export interface BroadcastMessage extends RecordModel {
     id: string;
@@ -38,6 +39,32 @@ export interface CreateBroadcastData {
     scheduled_for?: string;
 }
 
+const broadcastChannelsSchema = z.object({
+    email: z.boolean(),
+    inApp: z.boolean(),
+    sms: z.boolean(),
+});
+
+export const broadcastMessageSchema = z.object({
+    id: z.string(),
+    collectionId: z.string().optional(),
+    collectionName: z.string().optional(),
+    subject: z.string(),
+    message: z.string(),
+    target_audience: z.union([z.literal('all'), z.literal('schools'), z.literal('individuals'), z.literal('active'), z.literal('trial')]),
+    priority: z.union([z.literal('normal'), z.literal('high'), z.literal('urgent')]),
+    channels: broadcastChannelsSchema,
+    sent_at: z.string().optional(),
+    sent_by: z.string(),
+    recipient_count: z.number().optional(),
+    status: z.union([z.literal('draft'), z.literal('scheduled'), z.literal('sent'), z.literal('failed')]).optional(),
+    scheduled_for: z.string().optional(),
+    created: z.string(),
+    updated: z.string(),
+}).passthrough();
+
+export type BroadcastMessage = z.infer<typeof broadcastMessageSchema>;
+
 const MOCK_BROADCASTS: BroadcastMessage[] = [
     {
         id: 'broadcast-1',
@@ -71,6 +98,15 @@ const MOCK_BROADCASTS: BroadcastMessage[] = [
     }
 ];
 
+function parseBroadcast(raw: unknown): BroadcastMessage | null {
+    const res = broadcastMessageSchema.safeParse(raw);
+    if (!res.success) {
+        console.warn('broadcastService: failed to parse record', res.error);
+        return null;
+    }
+    return res.data;
+}
+
 class BroadcastService {
     private collection = 'broadcast_messages';
 
@@ -87,7 +123,7 @@ class BroadcastService {
                 sort: '-created',
                 requestKey: null
             });
-            return records as unknown as BroadcastMessage[];
+            return records.map(r => parseBroadcast(r)).filter((r): r is BroadcastMessage => r !== null);
         } catch (error) {
             console.error('Failed to fetch broadcast messages:', error);
             return [];
@@ -106,7 +142,7 @@ class BroadcastService {
             const record = await pb.collection(this.collection).getOne(id, {
                 requestKey: null
             });
-            return record as unknown as BroadcastMessage;
+            return parseBroadcast(record);
         } catch (error) {
             console.error(`Failed to fetch broadcast ${id}:`, error);
             return null;
@@ -144,7 +180,7 @@ class BroadcastService {
                 target: data.target_audience
             }, 'info');
 
-            return record as unknown as BroadcastMessage;
+            return parseBroadcast(record);
         } catch (error) {
             console.error('Failed to create broadcast:', error);
             return null;
@@ -175,7 +211,7 @@ class BroadcastService {
             }
 
             const record = await pb.collection(this.collection).update(id, data);
-            return record as unknown as BroadcastMessage;
+            return parseBroadcast(record);
         } catch (error) {
             console.error('Failed to update broadcast:', error);
             return null;
@@ -253,7 +289,7 @@ class BroadcastService {
             // Dispatch to channels
             await this.dispatchToChannels(data, recipientCount);
 
-            return record as unknown as BroadcastMessage;
+            return parseBroadcast(record);
         } catch (error) {
             console.error('Failed to send broadcast:', error);
             return null;
@@ -304,7 +340,7 @@ class BroadcastService {
 
             await this.dispatchToChannels(draft, recipientCount);
 
-            return record as unknown as BroadcastMessage;
+            return parseBroadcast(record);
         } catch (error) {
             console.error('Failed to send draft:', error);
             return null;
@@ -340,7 +376,7 @@ class BroadcastService {
                 scheduled_for: scheduledFor
             }, 'info');
 
-            return record as unknown as BroadcastMessage;
+            return parseBroadcast(record);
         } catch (error) {
             console.error('Failed to schedule broadcast:', error);
             return null;
@@ -446,7 +482,7 @@ class BroadcastService {
                 sort: '-sent_at',
                 requestKey: null
             });
-            return records as unknown as BroadcastMessage[];
+            return records.map(r => parseBroadcast(r)).filter((r): r is BroadcastMessage => r !== null);
         } catch (error) {
             console.error('Failed to fetch sent messages:', error);
             return [];
@@ -467,7 +503,7 @@ class BroadcastService {
                 sort: '-created',
                 requestKey: null
             });
-            return records as unknown as BroadcastMessage[];
+            return records.map(r => parseBroadcast(r)).filter((r): r is BroadcastMessage => r !== null);
         } catch (error) {
             console.error('Failed to fetch drafts:', error);
             return [];
@@ -488,7 +524,7 @@ class BroadcastService {
                 sort: 'scheduled_for',
                 requestKey: null
             });
-            return records as unknown as BroadcastMessage[];
+            return records.map(r => parseBroadcast(r)).filter((r): r is BroadcastMessage => r !== null);
         } catch (error) {
             console.error('Failed to fetch scheduled messages:', error);
             return [];
@@ -509,7 +545,7 @@ class BroadcastService {
                 sort: '-created',
                 requestKey: null
             });
-            return records as unknown as BroadcastMessage[];
+            return records.map(r => parseBroadcast(r)).filter((r): r is BroadcastMessage => r !== null);
         } catch (error) {
             console.error(`Failed to fetch ${priority} messages:`, error);
             return [];

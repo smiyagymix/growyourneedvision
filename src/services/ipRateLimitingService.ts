@@ -375,17 +375,28 @@ export const ipRateLimitingService = {
     }> {
         try {
             const serverUrl = env.get('paymentServerUrl') || 'http://localhost:3001';
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Rate limit check timeout')), 5000)
+            );
             
-            const response = await fetch(`${serverUrl}/api/rate-limit/check`, {
+            const fetchPromise = fetch(`${serverUrl}/api/rate-limit/check`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ tenantId, ipAddress })
             });
 
-            return await response.json();
+            const response = await Promise.race([fetchPromise, timeoutPromise]);
+            
+            if (!response.ok) {
+                console.warn(`Rate limit check returned ${response.status}, allowing request`);
+                return { allowed: true, reason: 'Service error, allowing request' };
+            }
+
+            const data = await response.json();
+            return data || { allowed: true }; // Default allow if response is empty
         } catch (error) {
-            console.error('Error checking rate limit:', error);
-            return { allowed: true }; // Fail open for availability
+            console.warn('Error checking rate limit (proceeding anyway):', error instanceof Error ? error.message : error);
+            return { allowed: true, reason: 'Rate limit check unavailable' }; // Fail open for availability
         }
     },
 

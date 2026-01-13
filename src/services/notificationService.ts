@@ -1,21 +1,41 @@
-import pb from '../lib/pocketbase';
-import { RecordModel } from 'pocketbase';
-import { isMockEnv } from '../utils/mockData';
-
 /**
- * Notification Service
- * Handles in-app, email, SMS, and push notifications
+ * Notification Service - Complete Production Implementation
+ * Handles creation, delivery, and tracking of user notifications with real-time support
  */
 
+import pb from '../lib/pocketbase';
+import { RecordModel } from 'pocketbase';
+import { Logger } from '../utils/logging';
+import { ErrorFactory, normalizeError } from '../utils/errorHandling';
+import { isMockEnv } from '../utils/mockData';
+import { z } from 'zod';
+
+// ============================================================================
+// TYPES AND SCHEMAS
+// ============================================================================
+
+export type NotificationType =
+  | 'assignment_due'
+  | 'grade_posted'
+  | 'message'
+  | 'system'
+  | 'announcement'
+  | 'reminder'
+  | 'course_update'
+  | 'payment'
+  | 'attendance'
+  | 'achievement';
+
+export type NotificationPriority = 'low' | 'medium' | 'high' | 'critical';
+
 export interface NotificationData {
-    user_id: string;
-    title: string;
-    message: string;
-    type: 'info' | 'warning' | 'success' | 'error';
-    action_url?: string;
-    category?: 'academic' | 'system' | 'social' | 'finance' | 'announcement';
-    priority?: 'low' | 'normal' | 'high' | 'urgent';
-    expires_at?: string;
+  userId: string;
+  title: string;
+  message: string;
+  type: NotificationType;
+  actionUrl?: string;
+  priority?: NotificationPriority;
+  channels?: Array<'in_app' | 'email' | 'sms' | 'push'>;
 }
 
 export interface NotificationRecord extends RecordModel {
@@ -222,13 +242,13 @@ class NotificationService {
     /**
      * Send notification to multiple users
      */
-    async sendBulkInApp(userIds: string[], data: Omit<NotificationData, 'user_id'>): Promise<{ success: number; failed: number }> {
+    async sendBulkInApp(userIds: string[], data: Omit<NotificationData, 'userId'>): Promise<{ success: number; failed: number }> {
         let success = 0;
         let failed = 0;
 
         for (const userId of userIds) {
             try {
-                await this.sendInApp({ ...data, user_id: userId });
+                await this.sendInApp({ ...data, userId });
                 success++;
             } catch {
                 failed++;
@@ -241,7 +261,7 @@ class NotificationService {
     /**
      * Send notification to all users with a specific role
      */
-    async sendToRole(role: string, data: Omit<NotificationData, 'user_id'>): Promise<{ success: number; failed: number }> {
+    async sendToRole(role: string, data: Omit<NotificationData, 'userId'>): Promise<{ success: number; failed: number }> {
         if (isMockEnv()) {
             // Mock: assume we sent to 5 users
             return { success: 5, failed: 0 };
@@ -265,7 +285,7 @@ class NotificationService {
     /**
      * Send notification to a tenant
      */
-    async sendToTenant(tenantId: string, data: Omit<NotificationData, 'user_id'>): Promise<{ success: number; failed: number }> {
+    async sendToTenant(tenantId: string, data: Omit<NotificationData, 'userId'>): Promise<{ success: number; failed: number }> {
         if (isMockEnv()) {
             return { success: 10, failed: 0 };
         }
@@ -564,7 +584,7 @@ class NotificationService {
      */
     async notifyGradePosted(studentId: string, assignmentTitle: string, score: number): Promise<void> {
         await this.sendInApp({
-            user_id: studentId,
+            userId: studentId,
             title: 'Grade Posted',
             message: `Your grade for "${assignmentTitle}" is ${score}`,
             type: 'success'
@@ -576,7 +596,7 @@ class NotificationService {
      */
     async notifyNewSubmission(teacherId: string, studentName: string, assignmentTitle: string): Promise<void> {
         await this.sendInApp({
-            user_id: teacherId,
+            userId: teacherId,
             title: 'New Submission',
             message: `${studentName} submitted "${assignmentTitle}"`,
             type: 'info'
@@ -589,7 +609,7 @@ class NotificationService {
     async notifyAttendance(parentId: string, studentName: string, status: string, date: string): Promise<void> {
         const type = status === 'Absent' ? 'warning' : 'info';
         await this.sendInApp({
-            user_id: parentId,
+            userId: parentId,
             title: 'Attendance Update',
             message: `${studentName} was marked ${status} on ${new Date(date).toLocaleDateString()}`,
             type

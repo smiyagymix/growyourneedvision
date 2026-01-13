@@ -8,6 +8,7 @@ import { isMockEnv } from '../utils/mockData';
 import { Result, Ok, Err } from '../lib/types';
 import { AppError } from './errorHandler';
 import { RecordModel } from 'pocketbase';
+import { z } from 'zod';
 
 // Inline helper to avoid module resolution issues
 function createTypedCollection<T extends RecordModel>(collectionName: string) {
@@ -24,6 +25,30 @@ export interface GDPRExportData extends RecordModel {
     downloadUrl?: string;
     expiresAt?: string;
     data?: UserExportData;
+}
+
+const gdprExportRecordSchema = z.object({
+    id: z.string(),
+    user: z.string().optional(),
+    requested_at: z.string().optional(),
+    completed_at: z.string().optional(),
+    status: z.union([z.literal('pending'), z.literal('processing'), z.literal('completed'), z.literal('failed')]),
+    download_url: z.string().optional(),
+    expires_at: z.string().optional(),
+    data_json: z.string().optional(),
+    created: z.string().optional(),
+    updated: z.string().optional(),
+    collectionId: z.string().optional(),
+    collectionName: z.string().optional()
+});
+
+function parseGDPRExportRecord(record: unknown) {
+    const parsed = gdprExportRecordSchema.safeParse(record);
+    if (!parsed.success) {
+        console.error('gdprService: failed to parse export record', parsed.error, record);
+        return null;
+    }
+    return parsed.data;
 }
 
 /**
@@ -46,11 +71,11 @@ export async function requestGDPRExport(userId: string, tenantId?: string): Prom
 
         // Create export request record
         const exportRequest = await exportService.create({
-            userId,
+            user: userId,
             tenantId: tenantId || undefined,
             status: 'pending',
-            requestedAt: new Date().toISOString()
-        } as Partial<GDPRExportData>);
+            requested_at: new Date().toISOString()
+        } as any);
 
         // Start async export process (in production, this would be a background job)
         processGDPRExport(exportRequest.id, userId, tenantId).catch(error => {
@@ -224,15 +249,17 @@ export async function getGDPRExportStatus(exportId: string): Promise<GDPRExportD
     try {
         const pb = pocketBaseClient.getRawClient();
         const exportRequest = await pb.collection('gdpr_export_requests').getOne(exportId);
+        const parsed = parseGDPRExportRecord(exportRequest);
+        if (!parsed) throw new Error('Export request invalid');
 
         return {
-            exportId: exportRequest.id,
-            userId: exportRequest.user,
-            requestedAt: exportRequest.requested_at,
-            completedAt: exportRequest.completed_at,
-            status: exportRequest.status,
-            downloadUrl: exportRequest.download_url,
-            expiresAt: exportRequest.expires_at
+            exportId: parsed.id,
+            userId: parsed.user || 'unknown',
+            requestedAt: parsed.requested_at || parsed.created || new Date().toISOString(),
+            completedAt: parsed.completed_at,
+            status: parsed.status,
+            downloadUrl: parsed.download_url,
+            expiresAt: parsed.expires_at
         };
     } catch (error) {
         console.error('Failed to get export status:', error);
@@ -251,16 +278,18 @@ export async function downloadGDPRExport(exportId: string): Promise<string> {
     try {
         const pb = pocketBaseClient.getRawClient();
         const exportRequest = await pb.collection('gdpr_export_requests').getOne(exportId);
+        const parsed = parseGDPRExportRecord(exportRequest);
+        if (!parsed) throw new Error('Export request invalid');
 
-        if (exportRequest.status !== 'completed') {
+        if (parsed.status !== 'completed') {
             throw new Error('Export is not yet completed');
         }
 
-        if (new Date(exportRequest.expires_at) < new Date()) {
+        if (parsed.expires_at && new Date(parsed.expires_at) < new Date()) {
             throw new Error('Export has expired');
         }
 
-        return exportRequest.data_json || JSON.stringify({ error: 'No data available' });
+        return parsed.data_json || JSON.stringify({ error: 'No data available' });
     } catch (error) {
         console.error('Failed to download export:', error);
         throw error;
@@ -400,15 +429,18 @@ export async function listGDPRExports(userId: string): Promise<GDPRExportData[]>
             sort: '-created'
         });
 
-        return requests.map(req => ({
-            exportId: req.id,
-            userId: req.user,
-            requestedAt: req.requested_at,
-            completedAt: req.completed_at,
-            status: req.status,
-            downloadUrl: req.download_url,
-            expiresAt: req.expires_at
-        }));
+        return requests
+            .map(parseGDPRExportRecord)
+            .filter((r): r is ReturnType<typeof parseGDPRExportRecord> => r !== null)
+            .map(req => ({
+                exportId: req.id,
+                userId: req.user || userId,
+                requestedAt: req.requested_at || req.created || new Date().toISOString(),
+                completedAt: req.completed_at,
+                status: req.status,
+                downloadUrl: req.download_url,
+                expiresAt: req.expires_at
+            }));
     } catch (error) {
         console.error('Failed to list GDPR exports:', error);
         return [];

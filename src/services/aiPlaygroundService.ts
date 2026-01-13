@@ -4,6 +4,7 @@
  */
 
 import pb from '../lib/pocketbase';
+import { z } from 'zod';
 import { isMockEnv } from '../utils/mockData';
 import { RecordModel } from 'pocketbase';
 import { auditLog } from './auditLogger';
@@ -58,6 +59,53 @@ export interface PlaygroundTest extends RecordModel {
     notes?: string;
     created: string;
     updated: string;
+}
+
+const modelResponseSchema = z.object({
+    model: z.string(),
+    response: z.string(),
+    time_ms: z.coerce.number(),
+    cost: z.coerce.number(),
+    tokens_input: z.coerce.number(),
+    tokens_output: z.coerce.number(),
+    error: z.string().optional(),
+    finish_reason: z.enum(['stop','length','content_filter','error']).optional()
+});
+
+const playgroundParamsSchema = z.object({
+    temperature: z.coerce.number(),
+    max_tokens: z.coerce.number(),
+    top_p: z.coerce.number().optional(),
+    frequency_penalty: z.coerce.number().optional(),
+    presence_penalty: z.coerce.number().optional(),
+    stop_sequences: z.array(z.string()).optional(),
+    system_prompt: z.string().optional()
+});
+
+const playgroundTestSchema = z.object({
+    id: z.string(),
+    collectionId: z.string().optional(),
+    collectionName: z.string().optional(),
+    prompt: z.string(),
+    models: z.array(z.object({ model: z.string(), params: playgroundParamsSchema })),
+    responses: z.array(modelResponseSchema).optional(),
+    created_by: z.string(),
+    tags: z.array(z.string()).optional(),
+    is_favorite: z.boolean().optional(),
+    notes: z.string().optional(),
+    created: z.string(),
+    updated: z.string()
+});
+
+const playgroundTestArraySchema = z.array(playgroundTestSchema);
+
+function parsePlaygroundTest(record: unknown): PlaygroundTest | null {
+    try {
+        return playgroundTestSchema.parse(record) as PlaygroundTest;
+    } catch (err) {
+        console.error('aiPlaygroundService: failed to parse record as PlaygroundTest', err, record);
+        return null;
+    }
 }
 
 export interface ComparisonResult {
@@ -417,7 +465,17 @@ class AIPlaygroundService {
                 cost_total: responses.reduce((sum, r) => sum + r.cost, 0)
             }, 'info');
             
-            return savedTest as unknown as PlaygroundTest;
+            return parsePlaygroundTest(savedTest) ?? ({
+                id: savedTest.id,
+                collectionId: savedTest.collectionId || '',
+                collectionName: savedTest.collectionName || '',
+                prompt,
+                models: models.map(m => ({ model: m, params })),
+                responses,
+                created_by: userId || 'anonymous',
+                created: new Date().toISOString(),
+                updated: new Date().toISOString()
+            } as PlaygroundTest);
         } catch (error) {
             console.error('Error saving test:', error);
             // Return unsaved test data
@@ -476,7 +534,7 @@ class AIPlaygroundService {
                 filter,
                 requestKey: null
             });
-            return tests.items as unknown as PlaygroundTest[];
+            return tests.items.map(parsePlaygroundTest).filter((t): t is PlaygroundTest => t !== null);
         } catch (error) {
             console.error('Error fetching history:', error);
             return [];
@@ -495,7 +553,7 @@ class AIPlaygroundService {
             const test = await pb.collection(this.collection).getOne(id, {
                 requestKey: null
             });
-            return test as unknown as PlaygroundTest;
+            return parsePlaygroundTest(test);
         } catch (error) {
             console.error('Error fetching test:', error);
             return null;
@@ -566,7 +624,7 @@ class AIPlaygroundService {
             const existingTags = test.tags || [];
             const newTags = [...new Set([...existingTags, ...tags])];
             const updated = await pb.collection(this.collection).update(id, { tags: newTags });
-            return updated as unknown as PlaygroundTest;
+            return parsePlaygroundTest(updated);
         } catch (error) {
             console.error('Error adding tags:', error);
             return null;
@@ -588,7 +646,7 @@ class AIPlaygroundService {
 
         try {
             const updated = await pb.collection(this.collection).update(id, { notes });
-            return updated as unknown as PlaygroundTest;
+            return parsePlaygroundTest(updated);
         } catch (error) {
             console.error('Error adding notes:', error);
             return null;
@@ -613,7 +671,7 @@ class AIPlaygroundService {
                 sort: '-created',
                 requestKey: null
             });
-            return tests.items as unknown as PlaygroundTest[];
+            return tests.items.map(parsePlaygroundTest).filter((t): t is PlaygroundTest => t !== null);
         } catch (error) {
             console.error('Error searching tests:', error);
             return [];
@@ -634,7 +692,7 @@ class AIPlaygroundService {
                 sort: '-created',
                 requestKey: null
             });
-            return tests.items as unknown as PlaygroundTest[];
+            return tests.items.map(parsePlaygroundTest).filter((t): t is PlaygroundTest => t !== null);
         } catch (error) {
             console.error('Error fetching favorites:', error);
             return [];

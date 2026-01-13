@@ -8,6 +8,7 @@ import { auditLogger } from './auditLogger';
 import { isMockEnv } from '../utils/mockData';
 import { RecordModel } from 'pocketbase';
 import { CustomFields } from '../types/crm';
+import { z } from 'zod';
 
 export interface CRMContact extends RecordModel {
     id: string;
@@ -49,6 +50,66 @@ export interface ContactActivity {
     description: string;
     performed_by: string;
     performed_at: string;
+}
+
+const customFieldsSchema = z.record(z.string(), z.union([
+    z.string(),
+    z.number(),
+    z.boolean(),
+    z.array(z.string()),
+    z.record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
+]));
+
+const crmContactSchema = z.object({
+    id: z.string(),
+    collectionId: z.string().optional(),
+    collectionName: z.string().optional(),
+    first_name: z.string().optional().default(''),
+    last_name: z.string().optional().default(''),
+    email: z.string().optional().default(''),
+    phone: z.string().optional(),
+    company: z.string().optional(),
+    title: z.string().optional(),
+    status: z.union([z.literal('lead'), z.literal('prospect'), z.literal('customer'), z.literal('inactive')]).optional().default('lead'),
+    source: z.union([z.literal('website'), z.literal('referral'), z.literal('cold_call'), z.literal('event'), z.literal('social'), z.literal('other')]).optional(),
+    tags: z.array(z.string()).optional(),
+    custom_fields: customFieldsSchema.optional(),
+    notes: z.string().optional(),
+    last_contact: z.string().optional(),
+    next_follow_up: z.string().optional(),
+    assigned_to: z.string().optional(),
+    lifecycle_stage: z.union([z.literal('subscriber'), z.literal('lead'), z.literal('mql'), z.literal('sql'), z.literal('opportunity'), z.literal('customer')]).optional(),
+    lead_score: z.coerce.number().optional(),
+    created_by: z.string().optional(),
+    created: z.string().optional(),
+    updated: z.string().optional()
+});
+
+const contactActivitySchema = z.object({
+    id: z.string(),
+    contact_id: z.string(),
+    type: z.union([z.literal('email'), z.literal('call'), z.literal('meeting'), z.literal('note'), z.literal('task'), z.literal('deal')]),
+    description: z.string(),
+    performed_by: z.string(),
+    performed_at: z.string()
+});
+
+function parseCRMContact(record: unknown): CRMContact | null {
+    const parsed = crmContactSchema.safeParse(record);
+    if (!parsed.success) {
+        console.error('crmContactsService: failed to parse CRMContact', parsed.error, record);
+        return null;
+    }
+    return parsed.data as CRMContact;
+}
+
+function parseContactActivity(record: unknown): ContactActivity | null {
+    const parsed = contactActivitySchema.safeParse(record);
+    if (!parsed.success) {
+        console.error('crmContactsService: failed to parse ContactActivity', parsed.error, record);
+        return null;
+    }
+    return parsed.data as ContactActivity;
 }
 
 const MOCK_CONTACTS: CRMContact[] = [
@@ -241,7 +302,7 @@ class CRMContactsService {
                 sort: '-created',
                 requestKey: null
             });
-            return contacts as unknown as CRMContact[];
+            return contacts.map(parseCRMContact).filter((c): c is CRMContact => c !== null);
         } catch (error) {
             console.error('Error fetching contacts:', error);
             return [];
@@ -272,8 +333,9 @@ class CRMContactsService {
                 sort: '-created',
                 requestKey: null
             });
+            const items = result.items.map(parseCRMContact).filter((c): c is CRMContact => c !== null);
             return {
-                items: result.items as unknown as CRMContact[],
+                items,
                 totalItems: result.totalItems,
                 totalPages: result.totalPages
             };
@@ -295,7 +357,7 @@ class CRMContactsService {
             const contact = await pb.collection(this.collection).getOne(id, {
                 requestKey: null
             });
-            return contact as unknown as CRMContact;
+            return parseCRMContact(contact);
         } catch (error) {
             console.error('Error fetching contact:', error);
             return null;
@@ -347,7 +409,7 @@ class CRMContactsService {
                 }
             });
 
-            return contact as unknown as CRMContact;
+            return parseCRMContact(contact);
         } catch (error) {
             console.error('Error creating contact:', error);
             return null;
@@ -384,7 +446,7 @@ class CRMContactsService {
                 }
             });
 
-            return contact as unknown as CRMContact;
+            return parseCRMContact(contact);
         } catch (error) {
             console.error('Error updating contact:', error);
             return null;
@@ -514,7 +576,7 @@ class CRMContactsService {
                 sort: '-performed_at',
                 requestKey: null
             });
-            return activities as unknown as ContactActivity[];
+            return activities.map(parseContactActivity).filter((a): a is ContactActivity => a !== null);
         } catch (error) {
             console.error('Error fetching activities:', error);
             return [];
@@ -545,7 +607,7 @@ class CRMContactsService {
             const result = await pb.collection(this.activitiesCollection).create(activity);
             // Update last_contact
             await this.updateLastContact(contactId);
-            return result as unknown as ContactActivity;
+            return parseContactActivity(result);
         } catch (error) {
             console.error('Error logging activity:', error);
             return null;
@@ -568,7 +630,7 @@ class CRMContactsService {
                 sort: 'next_follow_up',
                 requestKey: null
             });
-            return contacts as unknown as CRMContact[];
+            return contacts.map(parseCRMContact).filter((c): c is CRMContact => c !== null);
         } catch (error) {
             console.error('Error fetching follow-up contacts:', error);
             return [];

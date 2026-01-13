@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"pnpm:dev:client\" \"pnpm:dev:pocketbase\" \"pnpm:dev:ai\" \"pnpm:dev:server\" --names \"CLIENT,POCKETBASE,AI,SERVER\" --prefix-colors \"blue,magenta,yellow,green\"",
+    "dev": "concurrently \"pnpm:dev:pocketbase\" \"pnpm:dev:init\" \"pnpm:dev:client\" \"pnpm:dev:ai\" \"pnpm:dev:server\" --names \"POCKETBASE,INIT,CLIENT,AI,SERVER\" --prefix-colors \"magenta,cyan,blue,yellow,green\"",
+    "dev:init": "node scripts/startup-init.js",
     "dev:client": "vite",
     "dev:pocketbase": "cd pocketbase && pocketbase.exe serve --http=127.0.0.1:8090",
     "dev:ai": "powershell -ExecutionPolicy Bypass ./launch-ai.ps1",
@@ -67,6 +68,7 @@
     "jspdf": "^3.0.4",
     "jspdf-autotable": "^5.0.2",
     "lodash.debounce": "^4.0.8",
+    "node-fetch": "^2.7.0",
     "nodemailer": "^7.0.11",
     "otpauth": "^9.4.1",
     "otplib": "^12.0.1",

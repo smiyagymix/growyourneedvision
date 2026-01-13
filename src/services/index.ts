@@ -28,6 +28,14 @@ export * from './paymentService';
 export * from './emailService';
 export * from './storageQuotaService';
 export * from './fileUploadService';
+
+// Production-grade Services with Real Data Flows
+export { userService, type User, type UserCreatePayload, type UserUpdatePayload } from './UserService';
+export { courseService, type Course, type CourseCreatePayload, type Enrollment } from './CourseService';
+export { assignmentService, type Assignment, type AssignmentSubmission, type SubmissionCreatePayload } from './AssignmentService';
+export { gradeService, type Grade, type GradeCreatePayload, type GradeStats } from './GradeService';
+export { attendanceService } from './AttendanceService';
+export { notificationService, type NotificationData, type NotificationRecord, type NotificationType } from './notificationService';
 export * from './assignmentService';
 
 // AI Services

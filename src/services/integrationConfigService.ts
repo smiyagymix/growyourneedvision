@@ -5,6 +5,7 @@ import env from '../config/environment';
 import { Result, Ok, Err, Option, Some, None } from '../lib/types';
 import { AppError, ValidationError } from './errorHandler';
 import { IntegrationConfigData } from '../types/integration';
+import { z } from 'zod';
 
 export interface IntegrationConfig {
     id: string;
@@ -17,6 +18,65 @@ export interface IntegrationConfig {
     last_synced?: string;
     created?: string;
     updated?: string;
+}
+
+// Zod schemas for IntegrationConfig and per-category config shapes
+const emailConfigSchema = z.object({
+    host: z.string().optional(),
+    port: z.number().optional(),
+    secure: z.boolean().optional(),
+    from_email: z.string().optional(),
+    from_name: z.string().optional(),
+    username: z.string().optional(),
+    password: z.string().optional(),
+    api_key: z.string().optional()
+});
+
+const analyticsConfigSchema = z.object({
+    tracking_id: z.string().optional(),
+    measurement_id: z.string().optional(),
+    project_token: z.string().optional(),
+    api_key: z.string().optional()
+}).catchall(z.union([z.string(), z.number(), z.boolean()]));
+
+const paymentConfigSchema = z.object({
+    mode: z.union([z.literal('live'), z.literal('test')]).optional(),
+    webhook_url: z.string().optional(),
+    api_key: z.string().optional(),
+    public_key: z.string().optional(),
+    secret_key: z.string().optional()
+}).catchall(z.union([z.string(), z.number(), z.boolean()]));
+
+const storageConfigSchema = z.object({
+    endpoint: z.string().optional(),
+    bucket: z.string().optional(),
+    region: z.string().optional(),
+    access_key_id: z.string().optional(),
+    secret_access_key: z.string().optional()
+}).catchall(z.union([z.string(), z.number(), z.boolean()]));
+
+const integrationConfigSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    category: z.union([z.literal('email'), z.literal('analytics'), z.literal('payment'), z.literal('storage')]),
+    provider: z.string(),
+    enabled: z.boolean(),
+    status: z.union([z.literal('connected'), z.literal('disconnected'), z.literal('error')]),
+    config: z.union([emailConfigSchema, analyticsConfigSchema, paymentConfigSchema, storageConfigSchema]),
+    last_synced: z.string().optional(),
+    created: z.string().optional(),
+    updated: z.string().optional(),
+    collectionId: z.string().optional(),
+    collectionName: z.string().optional()
+});
+
+function parseIntegration(record: unknown): IntegrationConfig | null {
+    const parsed = integrationConfigSchema.safeParse(record);
+    if (!parsed.success) {
+        console.error('integrationConfigService: failed to parse integration record', parsed.error, record);
+        return null;
+    }
+    return parsed.data;
 }
 
 // Mock data for development/testing
@@ -150,7 +210,11 @@ class IntegrationConfigService {
                 requestKey: null
             });
             if (result.success) {
-                return Ok(result.data);
+                // Validate and normalize integrations
+                const integrations = Array.isArray(result.data)
+                    ? result.data.map(parseIntegration).filter((i): i is IntegrationConfig => i !== null)
+                    : [];
+                return Ok(integrations);
             }
             return result;
         } catch (error) {
@@ -177,7 +241,8 @@ class IntegrationConfigService {
         try {
             const result = await this.integrationService.getOne(id);
             if (result.success) {
-                return Some(result.data);
+                const parsed = parseIntegration(result.data);
+                return parsed ? Some(parsed) : None();
             }
             return None();
         } catch (error) {

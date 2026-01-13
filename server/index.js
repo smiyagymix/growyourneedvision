@@ -21,6 +21,7 @@ import * as exportCenterService from './exportCenterService.js';
 import cacheService from './cacheService.js';
 import auditService from './auditLogService.js';
 import productionValidator from './productionValidator.js';
+import fixPocketBasePermissions from './pbPermissionsFixer.js';
 import nodemailer from 'nodemailer';
 import PDFDocument from 'pdfkit';
 import { randomUUID } from 'crypto';
@@ -402,13 +403,97 @@ app.get('/api/metrics', (req, res) => {
 
 app.post('/api/rate-limit/check', async (req, res) => {
     try {
-        const { tenantId, ipAddress } = req.body;
-        // In a real implementation, we would query PB for specific tenant limits
-        // For now, we return allowed to unblock the client
-        res.json({ allowed: true });
+        const { tenantId, ipAddress } = req.body || {};
+        const clientIp = ipAddress || (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+        
+        // Allow if no tenant specified (development/individual mode)
+        if (!tenantId) {
+            return res.json({ 
+                allowed: true,
+                reason: 'No tenant specified',
+                remaining: 1000
+            });
+        }
+
+        // Try to check rate limits via PocketBase
+        try {
+            // Get tenant rate limits
+            const limits = await pbList('ip_rate_limits', {
+                filter: `tenantId = "${tenantId}"`,
+                perPage: 1
+            });
+
+            const limit = limits[0];
+            
+            // If no limit configured, allow
+            if (!limit || !limit.enabled) {
+                return res.json({ 
+                    allowed: true,
+                    reason: 'Rate limiting not configured for tenant',
+                    remaining: 1000
+                });
+            }
+
+            // Check if IP is whitelisted
+            if (limit.ipWhitelist && limit.ipWhitelist.includes(clientIp)) {
+                return res.json({ 
+                    allowed: true,
+                    reason: 'IP is whitelisted',
+                    remaining: 999999
+                });
+            }
+
+            // Check if IP is blacklisted
+            if (limit.ipBlacklist && limit.ipBlacklist.includes(clientIp)) {
+                return res.status(429).json({ 
+                    allowed: false,
+                    reason: 'IP address is banned',
+                    remaining: 0
+                });
+            }
+
+            // Check recent violations for this IP (last 60 minutes)
+            const oneHourAgo = new Date(Date.now() - 3600000).toISOString();
+            const recentViolations = await pbList('ip_violations', {
+                filter: `tenantId = "${tenantId}" && ipAddress = "${clientIp}" && timestamp > "${oneHourAgo}"`,
+                perPage: 1000
+            });
+
+            const violationCount = recentViolations.length;
+            const remaining = Math.max(0, limit.requestsPerHour - violationCount);
+
+            if (violationCount >= limit.requestsPerHour) {
+                return res.status(429).json({ 
+                    allowed: false,
+                    reason: 'Rate limit exceeded',
+                    limit: limit.requestsPerHour,
+                    remaining: 0
+                });
+            }
+
+            return res.json({ 
+                allowed: true,
+                reason: 'Request allowed',
+                limit: limit.requestsPerHour,
+                remaining
+            });
+        } catch (pbError) {
+            console.warn('PocketBase not available for rate limit check:', pbError.message);
+            // Fall back to allowing request if PB is unavailable
+            return res.json({ 
+                allowed: true,
+                reason: 'Rate limit service unavailable, allowing request',
+                remaining: 1000
+            });
+        }
     } catch (error) {
         console.error('Error checking rate limit:', error);
-        res.status(500).json({ message: error.message });
+        // Don't block on error - always allow if check fails
+        res.json({ 
+            allowed: true,
+            message: 'Rate limit check failed',
+            error: error.message 
+        });
     }
 });
 
@@ -4656,8 +4741,11 @@ app.post('/api/migration/export', requireApiKey, express.json(), async (req, res
 });
 
 // Start server
-app.listen(port, () => {
+app.listen(port, async () => {
     console.log(`Payment server running at http://localhost:${port}`);
+
+    // Fix PocketBase collection permissions
+    await fixPocketBasePermissions();
 
     // Start automated scheduler
     schedulerService.start();
