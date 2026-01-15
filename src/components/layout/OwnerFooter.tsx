@@ -42,8 +42,9 @@ const OwnerFooter: React.FC<FooterProps> = ({ onLaunchApp, activeApps, isMobileS
     { name: 'Activities', icon: 'ActivitiesIcon3D', side: 'right' },
     { name: 'Travel & Transport', icon: 'TransportIcon3D', side: 'right' },
     { name: 'Sport', icon: 'SportIcon3D', side: 'right' },
-    { name: 'Islam', icon: 'IslamIcon3D', side: 'right' },
+    { name: 'Religion', icon: 'ReligionIcon3D', side: 'right' },
     { name: 'Gamification', icon: 'GamificationIcon3D', side: 'right' },
+    { name: 'EduMultiverse', icon: 'Sparkles', side: 'right' },
   ];
 
         const handleAppLaunch = (appName: string) => {

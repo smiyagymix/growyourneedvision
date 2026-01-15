@@ -25,12 +25,12 @@ export interface Translation extends RecordModel {
   pluralForms?: Record<string, string>;
 }
 
-export interface Currency extends RecordModel {
+export interface ExpansionCurrency extends RecordModel {
   code: string;
   name: string;
   symbol: string;
   exchangeRate: number;
-  baseCurrency: string;
+  baseExpansionCurrency: string;
   isActive: boolean;
   lastUpdated: string;
   decimalPlaces?: number;
@@ -129,14 +129,14 @@ const MOCK_TRANSLATIONS: Translation[] = [
   },
 ];
 
-const MOCK_CURRENCIES: Currency[] = [
+const MOCK_CURRENCIES: ExpansionCurrency[] = [
   {
     id: "curr1",
     code: "USD",
     name: "US Dollar",
     symbol: "$",
     exchangeRate: 1.0,
-    baseCurrency: "USD",
+    baseExpansionCurrency: "USD",
     isActive: true,
     lastUpdated: new Date().toISOString(),
     created: new Date().toISOString(),
@@ -150,7 +150,7 @@ const MOCK_CURRENCIES: Currency[] = [
     name: "Euro",
     symbol: "€",
     exchangeRate: 0.92,
-    baseCurrency: "USD",
+    baseExpansionCurrency: "USD",
     isActive: true,
     lastUpdated: new Date().toISOString(),
     created: new Date().toISOString(),
@@ -164,7 +164,7 @@ const MOCK_CURRENCIES: Currency[] = [
     name: "British Pound",
     symbol: "£",
     exchangeRate: 0.79,
-    baseCurrency: "USD",
+    baseExpansionCurrency: "USD",
     isActive: true,
     lastUpdated: new Date().toISOString(),
     created: new Date().toISOString(),
@@ -429,48 +429,48 @@ export const translationService = {
 // ============================================
 
 export const currencyService = {
-  async getAll(): Promise<Currency[]> {
+  async getAll(): Promise<ExpansionCurrency[]> {
     if (isMockEnv()) return MOCK_CURRENCIES;
 
-    return pb.collection("currencies").getFullList<Currency>({
+    return pb.collection("currencies").getFullList<ExpansionCurrency>({
       filter: "isActive = true",
       sort: "code",
       requestKey: null,
     });
   },
 
-  async convert(amount: number, fromCurrency: string, toCurrency: string): Promise<number> {
+  async convert(amount: number, fromExpansionCurrency: string, toExpansionCurrency: string): Promise<number> {
     if (isMockEnv()) {
-      const from = MOCK_CURRENCIES.find((c) => c.code === fromCurrency);
-      const to = MOCK_CURRENCIES.find((c) => c.code === toCurrency);
+      const from = MOCK_CURRENCIES.find((c) => c.code === fromExpansionCurrency);
+      const to = MOCK_CURRENCIES.find((c) => c.code === toExpansionCurrency);
 
       if (!from || !to) return amount;
 
       // Convert to base currency (USD) then to target currency
-      const inBaseCurrency = amount / from.exchangeRate;
-      return inBaseCurrency * to.exchangeRate;
+      const inBaseExpansionCurrency = amount / from.exchangeRate;
+      return inBaseExpansionCurrency * to.exchangeRate;
     }
 
     try {
-      const currencies = await pb.collection("currencies").getFullList<Currency>({
-        filter: `code = "${fromCurrency}" || code = "${toCurrency}"`,
+      const currencies = await pb.collection("currencies").getFullList<ExpansionCurrency>({
+        filter: `code = "${fromExpansionCurrency}" || code = "${toExpansionCurrency}"`,
         requestKey: null,
       });
 
-      const from = currencies.find((c) => c.code === fromCurrency);
-      const to = currencies.find((c) => c.code === toCurrency);
+      const from = currencies.find((c) => c.code === fromExpansionCurrency);
+      const to = currencies.find((c) => c.code === toExpansionCurrency);
 
       if (!from || !to) return amount;
 
-      const inBaseCurrency = amount / from.exchangeRate;
-      return inBaseCurrency * to.exchangeRate;
+      const inBaseExpansionCurrency = amount / from.exchangeRate;
+      return inBaseExpansionCurrency * to.exchangeRate;
     } catch (error) {
-      console.error("Currency conversion error:", error);
+      console.error("ExpansionCurrency conversion error:", error);
       return amount;
     }
   },
 
-  async updateRates(baseCurrency = "USD"): Promise<void> {
+  async updateRates(baseExpansionCurrency = "USD"): Promise<void> {
     if (isMockEnv()) return;
 
     try {
@@ -482,7 +482,7 @@ export const currencyService = {
       }
 
       const response = await fetch(
-        `https://v6.exchangerate-api.com/v6/${apiKey}/latest/${baseCurrency}`
+        `https://v6.exchangerate-api.com/v6/${apiKey}/latest/${baseExpansionCurrency}`
       );
       
       if (!response.ok) {
@@ -507,24 +507,24 @@ export const currencyService = {
 
       await Promise.all(updatePromises);
     } catch (error) {
-      logError("Currency rate update failed", error as Error);
+      logError("ExpansionCurrency rate update failed", error as Error);
     }
   },
 
-  formatCurrency(amount: number, currency: Currency): string {
+  formatExpansionCurrency(amount: number, currency: ExpansionCurrency): string {
     const formatted = amount.toFixed(currency.decimalPlaces || 2);
     return currency.symbolPosition === "after" 
       ? `${formatted} ${currency.symbol}`
       : `${currency.symbol}${formatted}`;
   },
 
-  async getByCode(code: string): Promise<Currency | null> {
+  async getByCode(code: string): Promise<ExpansionCurrency | null> {
     if (isMockEnv()) {
       return MOCK_CURRENCIES.find(c => c.code === code) || null;
     }
 
     try {
-      const currencies = await pb.collection("currencies").getFullList<Currency>({
+      const currencies = await pb.collection("currencies").getFullList<ExpansionCurrency>({
         filter: `code = "${code}"`,
         requestKey: null
       });
@@ -629,7 +629,7 @@ export const regionalSettingsService = {
 // COMPLIANCE SERVICE
 // ============================================
 
-export const complianceService = {
+export const expansionComplianceService = {
   async logAction(data: {
     tenantId: string;
     userId?: string;

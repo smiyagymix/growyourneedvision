@@ -88,7 +88,7 @@ export interface WeatherData {
     country: string;
 }
 
-export interface Currency {
+export interface TravelCurrency {
     code: string;
     name: string;
     symbol: string;
@@ -562,7 +562,7 @@ class TravelApiService {
     }
 
     // ============ Currency Exchange ============
-    async getExchangeRates(baseCurrency: string = 'USD'): Promise<Currency[]> {
+    async getExchangeRates(baseCurrency: string = 'USD'): Promise<TravelCurrency[]> {
         if (isMockEnv()) {
             return [
                 { code: 'USD', name: 'US Dollar', symbol: '$', rate: 1.0 },
@@ -583,7 +583,7 @@ class TravelApiService {
             if (!response.ok) throw new Error('Exchange rate API failed');
 
             const data = await response.json();
-            const currencies: Currency[] = [
+            const currencies: TravelCurrency[] = [
                 { code: 'USD', name: 'US Dollar', symbol: '$', rate: data.rates.USD || 1 },
                 { code: 'EUR', name: 'Euro', symbol: '€', rate: data.rates.EUR },
                 { code: 'GBP', name: 'British Pound', symbol: '£', rate: data.rates.GBP },

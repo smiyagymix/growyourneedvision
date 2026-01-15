@@ -152,7 +152,7 @@ export const courseService = {
                 return fullCourses.map(c => ({
                     ...c,
                     title: c.name,
-                    progress: c.progress || Math.floor(Math.random() * 100)
+                    progress: c.progress || 0
                 })) as Course[];
             }
 

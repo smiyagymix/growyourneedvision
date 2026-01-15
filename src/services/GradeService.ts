@@ -7,13 +7,60 @@ import pb from '../lib/pocketbase';
 import { RecordModel } from 'pocketbase';
 import { Logger } from '../utils/logging';
 import { ErrorFactory, normalizeError } from '../utils/errorHandling';
+import { isMockEnv } from '../utils/mockData';
 import { z } from 'zod';
+import { auditLog } from './auditLogger';
 
 // ============================================================================
 // TYPES AND SCHEMAS
 // ============================================================================
 
 export type GradeScale = 'A' | 'B' | 'C' | 'D' | 'F' | 'Pass' | 'Fail';
+
+export interface AssessmentRecord extends RecordModel {
+  student: string;
+  class: string;
+  exam?: string;
+  assignment?: string;
+  score: number;
+  max_score: number;
+  weight: number;
+  type: 'Exam' | 'Assignment' | 'Project' | 'Participation';
+  graded_by: string;
+  graded_at: string;
+  feedback?: string;
+  tenantId?: string;
+  expand?: {
+    student?: RecordModel;
+    class?: RecordModel;
+    exam?: RecordModel;
+    assignment?: RecordModel;
+  };
+}
+
+export interface CreateAssessmentData {
+  student: string;
+  class: string;
+  exam?: string;
+  assignment?: string;
+  score: number;
+  max_score: number;
+  weight: number;
+  type: 'Exam' | 'Assignment' | 'Project' | 'Participation';
+  feedback?: string;
+  tenantId?: string;
+}
+
+export interface ExamResultRecord extends RecordModel {
+  exam: string;
+  student: string;
+  marks_obtained: number;
+  grade?: string;
+  expand?: {
+    student?: RecordModel;
+    exam?: RecordModel;
+  };
+}
 
 export interface Grade extends RecordModel {
   enrollmentId: string;
@@ -451,6 +498,202 @@ export class GradeService {
       this.logger.error('Failed to get transcript', appError);
       throw appError;
     }
+  }
+
+  /**
+   * Get all assessments with optional filters
+   */
+  async getAssessments(filter?: {
+    studentId?: string;
+    classId?: string;
+    type?: string;
+    tenantId?: string;
+  }): Promise<AssessmentRecord[]> {
+    if (isMockEnv()) {
+      return [
+        {
+          id: 'grade-1',
+          collectionId: 'mock',
+          collectionName: 'grades',
+          created: new Date().toISOString(),
+          updated: new Date().toISOString(),
+          student: 'student-1',
+          class: 'class-1',
+          score: 85,
+          max_score: 100,
+          weight: 0.3,
+          type: 'Exam',
+          graded_by: 'teacher-1',
+          graded_at: new Date().toISOString(),
+          feedback: 'Good work!',
+        },
+      ] as AssessmentRecord[];
+    }
+
+    try {
+      const filterParts: string[] = [];
+      if (filter?.studentId) filterParts.push(`student = "${filter.studentId}"`);
+      if (filter?.classId) filterParts.push(`class = "${filter.classId}"`);
+      if (filter?.type) filterParts.push(`type = "${filter.type}"`);
+      if (filter?.tenantId) filterParts.push(`tenantId = "${filter.tenantId}"`);
+
+      return await pb.collection('grades').getFullList<AssessmentRecord>({
+        filter: filterParts.join(' && ') || undefined,
+        expand: 'student,class,exam,assignment',
+        sort: '-created',
+        requestKey: null,
+      });
+    } catch (error) {
+      this.logger.error('Error fetching assessments:', normalizeError(error));
+      return [];
+    }
+  }
+
+  /**
+   * Submit an assessment grade
+   */
+  async submitAssessment(data: CreateAssessmentData): Promise<AssessmentRecord | null> {
+    if (isMockEnv()) {
+      return {
+        id: `grade-${Date.now()}`,
+        collectionId: 'mock',
+        collectionName: 'grades',
+        created: new Date().toISOString(),
+        updated: new Date().toISOString(),
+        ...data,
+        graded_by: 'mock-teacher',
+        graded_at: new Date().toISOString(),
+      } as AssessmentRecord;
+    }
+
+    try {
+      const user = pb.authStore.model;
+      if (!user) throw ErrorFactory.unauthorized('User not authenticated');
+
+      return await pb.collection('grades').create<AssessmentRecord>({
+        ...data,
+        graded_by: user.id,
+        graded_at: new Date().toISOString(),
+      });
+    } catch (error) {
+      this.logger.error('Error submitting assessment:', normalizeError(error));
+      return null;
+    }
+  }
+
+  /**
+   * Submit an assessment grade (Alias for submitAssessment)
+   */
+  async submitGrade(data: CreateAssessmentData): Promise<AssessmentRecord | null> {
+    return this.submitAssessment(data);
+  }
+
+  /**
+   * Calculate average grade for a student in a class
+   */
+  async calculateStudentAverage(studentId: string, classId: string): Promise<number> {
+    const assessments = await this.getAssessments({ studentId, classId });
+
+    if (assessments.length === 0) return 0;
+
+    let totalWeightedScore = 0;
+    let totalWeight = 0;
+
+    assessments.forEach((assessment) => {
+      const normalizedScore = (assessment.score / assessment.max_score) * 100;
+      totalWeightedScore += normalizedScore * assessment.weight;
+      totalWeight += assessment.weight;
+    });
+
+    return totalWeight > 0 ? Math.round((totalWeightedScore / totalWeight) * 10) / 10 : 0;
+  }
+
+  /**
+   * Get exam results for a specific exam
+   */
+  async getExamResults(examId: string): Promise<ExamResultRecord[]> {
+    try {
+      return await pb.collection('exam_results').getFullList<ExamResultRecord>({
+        filter: `exam = "${examId}"`,
+        expand: 'student',
+        requestKey: null,
+      });
+    } catch (error) {
+      this.logger.error('Error fetching exam results:', normalizeError(error));
+      return [];
+    }
+  }
+
+  /**
+   * Submit or update an exam result
+   */
+  async submitExamResult(data: {
+    exam: string;
+    student: string;
+    marks_obtained: number;
+    grade?: string;
+  }): Promise<ExamResultRecord | null> {
+    try {
+      const existing = await pb.collection('exam_results').getList<ExamResultRecord>(1, 1, {
+        filter: `exam = "${data.exam}" && student = "${data.student}"`,
+        requestKey: null,
+      });
+
+      if (existing.items.length > 0) {
+        const updated = await pb.collection('exam_results').update<ExamResultRecord>(
+          existing.items[0].id,
+          {
+            marks_obtained: data.marks_obtained,
+            grade: data.grade || this.scoreToLetterGrade(data.marks_obtained),
+          }
+        );
+        await auditLog.log('academics.grade_update', { result_id: updated.id, marks: data.marks_obtained }, 'info');
+        return updated;
+      } else {
+        const created = await pb.collection('exam_results').create<ExamResultRecord>({
+          ...data,
+          grade: data.grade || this.scoreToLetterGrade(data.marks_obtained),
+        });
+        await auditLog.log('academics.grade_create', { exam_id: data.exam, student_id: data.student, marks: data.marks_obtained }, 'info');
+        return created;
+      }
+    } catch (error) {
+      this.logger.error('Error submitting exam result:', normalizeError(error));
+      return null;
+    }
+  }
+
+  /**
+   * Get grades for a specific class
+   */
+  async getClassGrades(classId: string): Promise<AssessmentRecord[]> {
+    return this.getAssessments({ classId });
+  }
+
+  /**
+   * Get grades for a specific student
+   */
+  async getStudentAssessments(studentId: string): Promise<AssessmentRecord[]> {
+    return this.getAssessments({ studentId });
+  }
+
+  /**
+   * Get grade distribution for a class
+   */
+  async getGradeDistribution(classId: string): Promise<{ A: number; B: number; C: number; D: number; F: number }> {
+    const assessments = await this.getAssessments({ classId });
+    const distribution = { A: 0, B: 0, C: 0, D: 0, F: 0 };
+
+    assessments.forEach((assessment) => {
+      const percent = (assessment.score / assessment.max_score) * 100;
+      if (percent >= 90) distribution.A++;
+      else if (percent >= 80) distribution.B++;
+      else if (percent >= 70) distribution.C++;
+      else if (percent >= 60) distribution.D++;
+      else distribution.F++;
+    });
+
+    return distribution;
   }
 
   /**

@@ -35,7 +35,7 @@ export interface Student extends RecordModel {
   tenantId?: string;
 }
 
-export interface Assignment extends RecordModel {
+export interface TeacherAssignment extends RecordModel {
   id: string;
   title: string;
   description: string;
@@ -202,21 +202,21 @@ export const teacherService = {
   },
 
   // Assignments
-  async getAssignments(teacherId: string, classId?: string): Promise<Assignment[]> {
+  async getAssignments(teacherId: string, classId?: string): Promise<TeacherAssignment[]> {
     const filter = classId ? `teacherId = "${teacherId}" && classId = "${classId}"` : `teacherId = "${teacherId}"`;
-    return pb.collection('assignments').getFullList<Assignment>({
+    return pb.collection('assignments').getFullList<TeacherAssignment>({
       filter,
       sort: '-due_date',
       requestKey: null,
     });
   },
 
-  async createAssignment(data: Partial<Assignment>): Promise<Assignment> {
-    return pb.collection('assignments').create<Assignment>(data);
+  async createAssignment(data: Partial<TeacherAssignment>): Promise<TeacherAssignment> {
+    return pb.collection('assignments').create<TeacherAssignment>(data);
   },
 
-  async updateAssignment(id: string, data: Partial<Assignment>): Promise<Assignment> {
-    return pb.collection('assignments').update<Assignment>(id, data);
+  async updateAssignment(id: string, data: Partial<TeacherAssignment>): Promise<TeacherAssignment> {
+    return pb.collection('assignments').update<TeacherAssignment>(id, data);
   },
 
   async deleteAssignment(id: string): Promise<void> {

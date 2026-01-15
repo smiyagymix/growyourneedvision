@@ -74,6 +74,45 @@ export class TypedError extends Error {
 /**
  * Type guard to check if error is a TypedError
  */
+/**
+ * Factory for creating TypedError instances
+ */
+export const ErrorFactory = {
+  validation(message: string, context?: Record<string, unknown>): TypedError {
+    return new TypedError(message, ErrorType.VALIDATION, 400, context);
+  },
+  authentication(message: string = 'Authentication required', context?: Record<string, unknown>): TypedError {
+    return new TypedError(message, ErrorType.AUTHENTICATION, 401, context);
+  },
+  authorization(message: string = 'Permission denied', context?: Record<string, unknown>): TypedError {
+    return new TypedError(message, ErrorType.AUTHORIZATION, 403, context);
+  },
+  notFound(message: string = 'Resource not found', context?: Record<string, unknown>): TypedError {
+    return new TypedError(message, ErrorType.NOT_FOUND, 404, context);
+  },
+  conflict(message: string, context?: Record<string, unknown>): TypedError {
+    return new TypedError(message, ErrorType.CONFLICT, 409, context);
+  },
+  network(message: string = 'Network error', context?: Record<string, unknown>): TypedError {
+    return new TypedError(message, ErrorType.NETWORK, 503, context);
+  },
+  server(message: string = 'Internal server error', context?: Record<string, unknown>): TypedError {
+    return new TypedError(message, ErrorType.SERVER, 500, context);
+  },
+  timeout(message: string = 'Operation timed out', context?: Record<string, unknown>): TypedError {
+    return new TypedError(message, ErrorType.TIMEOUT, 408, context);
+  },
+  rateLimit(message: string = 'Too many requests', context?: Record<string, unknown>): TypedError {
+    return new TypedError(message, ErrorType.RATE_LIMIT, 429, context);
+  },
+  createValidationError(message: string, context?: Record<string, unknown>): TypedError {
+    return this.validation(message, context);
+  },
+  createNotFoundError(message: string, context?: Record<string, unknown>): TypedError {
+    return this.notFound(message, context);
+  }
+};
+
 export function isTypedError(error: unknown): error is TypedError {
   return error instanceof TypedError;
 }
@@ -197,7 +236,7 @@ export async function retryWithBackoff<T>(
     maxDelayMs = 10000,
     backoffMultiplier = 2,
     onRetry,
-    shouldRetry = (error) => {
+    shouldRetry = (error: Error) => {
       // Retry on network errors, timeouts, and 5xx errors
       if (isPocketBaseError(error)) {
         return error.status >= 500;

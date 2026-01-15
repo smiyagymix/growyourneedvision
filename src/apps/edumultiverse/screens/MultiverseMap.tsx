@@ -7,7 +7,12 @@ import { LoadingScreen } from '../../../components/shared/LoadingScreen';
 import { Icon } from '../../../components/shared/ui/CommonUI';
 import { useGamification } from '../../../hooks/useGamification';
 
-export const MultiverseMap: React.FC = () => {
+interface MultiverseMapProps {
+    onSelectUniverse?: (id: string) => void;
+    onNavigate?: (tab: string, subNav?: string) => void;
+}
+
+export const MultiverseMap: React.FC<MultiverseMapProps> = ({ onSelectUniverse, onNavigate }) => {
     const [universes, setUniverses] = useState<Universe[]>([]);
     const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
@@ -25,6 +30,22 @@ export const MultiverseMap: React.FC = () => {
             console.error("Failed to load universes", e);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleUniverseClick = (universeId: string) => {
+        if (onSelectUniverse) {
+            onSelectUniverse(universeId);
+        } else {
+            navigate(`/apps/edumultiverse/universe/${universeId}`);
+        }
+    };
+
+    const handleAnomalyClick = (path: string, tab: string) => {
+        if (onNavigate) {
+            onNavigate(tab);
+        } else {
+            navigate(path);
         }
     };
 
@@ -55,7 +76,7 @@ export const MultiverseMap: React.FC = () => {
                             universe={universe}
                             index={index}
                             isLocked={!canAccess(universe.min_level)}
-                            onClick={() => navigate(`/apps/edumultiverse/universe/${universe.id}`)}
+                            onClick={() => handleUniverseClick(universe.id)}
                         />
                     ))
                 ) : (
@@ -76,7 +97,7 @@ export const MultiverseMap: React.FC = () => {
                     <motion.div
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
-                        onClick={() => navigate('/apps/edumultiverse/glitch-hunter')}
+                        onClick={() => handleAnomalyClick('/apps/edumultiverse/glitch-hunter', 'Glitches')}
                         className="bg-green-900/20 border border-green-500/30 p-6 rounded-xl cursor-pointer hover:bg-green-900/40 transition-all group relative overflow-hidden"
                     >
                         <div className="absolute inset-0 bg-green-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
@@ -90,7 +111,7 @@ export const MultiverseMap: React.FC = () => {
                     <motion.div
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
-                        onClick={() => navigate('/apps/edumultiverse/time-loop')}
+                        onClick={() => handleAnomalyClick('/apps/edumultiverse/time-loop', 'Time Loop')}
                         className="bg-indigo-900/20 border border-indigo-500/30 p-6 rounded-xl cursor-pointer hover:bg-indigo-900/40 transition-all group relative overflow-hidden"
                     >
                         <div className="absolute inset-0 bg-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
@@ -104,7 +125,7 @@ export const MultiverseMap: React.FC = () => {
                     <motion.div
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
-                        onClick={() => navigate('/apps/edumultiverse/quantum-quiz')}
+                        onClick={() => handleAnomalyClick('/apps/edumultiverse/quantum-quiz', 'Quiz')}
                         className="bg-purple-900/20 border border-purple-500/30 p-6 rounded-xl cursor-pointer hover:bg-purple-900/40 transition-all group relative overflow-hidden"
                     >
                         <div className="absolute inset-0 bg-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>

@@ -7,7 +7,7 @@ export const MOCK_STUDENTS: StudentRecord[] = [
         email: 'emma@school.com',
         grade_level: '10th Grade',
         class_id: 'class-1',
-        collectionId: '', collectionName: '', created: '', updated: ''
+        collectionId: 'mock', collectionName: 'students', created: '2024-01-01T00:00:00Z', updated: '2024-01-01T00:00:00Z'
     },
     {
         id: 'student-child-2',
@@ -15,7 +15,7 @@ export const MOCK_STUDENTS: StudentRecord[] = [
         email: 'james@school.com',
         grade_level: '7th Grade',
         class_id: 'class-2',
-        collectionId: '', collectionName: '', created: '', updated: ''
+        collectionId: 'mock', collectionName: 'students', created: '2024-01-02T00:00:00Z', updated: '2024-01-02T00:00:00Z'
     }
 ];
 
@@ -25,7 +25,7 @@ export const MOCK_LINKS: ParentStudentLink[] = [
         parent: 'parent-1',
         student: 'student-child-1',
         relationship: 'Mother',
-        collectionId: '', collectionName: '', created: '', updated: '',
+        collectionId: 'mock', collectionName: 'parent_student_links', created: '2024-01-05T00:00:00Z', updated: '2024-01-05T00:00:00Z',
         expand: {
             student: MOCK_STUDENTS[0]
         }
@@ -35,7 +35,7 @@ export const MOCK_LINKS: ParentStudentLink[] = [
         parent: 'parent-1',
         student: 'student-child-2',
         relationship: 'Mother',
-        collectionId: '', collectionName: '', created: '', updated: '',
+        collectionId: 'mock', collectionName: 'parent_student_links', created: '2024-01-06T00:00:00Z', updated: '2024-01-06T00:00:00Z',
         expand: {
             student: MOCK_STUDENTS[1]
         }
@@ -51,8 +51,8 @@ export const MOCK_GRADES: ChildGrade[] = [
 ];
 
 export const MOCK_ATTENDANCE: ChildAttendance[] = [
-    { id: 'att-1', student: 'student-child-1', date: '2024-02-15', status: 'Present' },
-    { id: 'att-2', student: 'student-child-1', date: '2024-02-14', status: 'Present' },
+    { id: 'att-1', student: 'student-child-1', date: '2024-02-15', status: 'Present', },
+    { id: 'att-2', student: 'student-child-1', date: '2024-02-14', status: 'Present', },
     { id: 'att-3', student: 'student-child-1', date: '2024-02-13', status: 'Late', notes: 'Arrived 10 minutes late' },
     { id: 'att-4', student: 'student-child-1', date: '2024-02-12', status: 'Present' },
     { id: 'att-5', student: 'student-child-1', date: '2024-02-11', status: 'Absent', notes: 'Sick - doctor\'s note provided' },

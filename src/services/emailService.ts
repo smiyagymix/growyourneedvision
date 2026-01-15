@@ -2,10 +2,8 @@
 // Supports SMTP, SendGrid, AWS SES, and Mock mode for testing
 
 import pb from '../lib/pocketbase';
-import { isMockEnv } from '../utils/mockData';
+import env from '../config/environment';
 
-const SMTP_HOST = import.meta.env.VITE_SMTP_HOST || 'pro.eu.turbo-smtp.com';
-const SMTP_PORT = parseInt(import.meta.env.VITE_SMTP_PORT || '465'); // 465 for SSL, 587 for TLS
 const SMTP_USERNAME = import.meta.env.VITE_SMTP_USERNAME || ''; // Consumer Key
 const SMTP_PASSWORD = import.meta.env.VITE_SMTP_PASSWORD || ''; // Consumer Secret
 const SMTP_FROM_EMAIL = import.meta.env.VITE_SMTP_FROM_EMAIL || 'noreply@growyourneed.com';
@@ -29,16 +27,6 @@ export const emailService = {
      * Send an email via configured provider
      */
     async send(message: EmailMessage) {
-        if (isMockEnv()) {
-            console.log('[MOCK] Email would be sent:', {
-                to: message.to,
-                subject: message.subject,
-                provider: EMAIL_PROVIDER
-            });
-            await this.logEmail(message, true, `mock-${Date.now()}`);
-            return { success: true, messageId: `mock-${Date.now()}` };
-        }
-
         try {
             let result;
 
@@ -47,7 +35,7 @@ export const emailService = {
             } else if (EMAIL_PROVIDER === 'smtp' && SMTP_USERNAME && SMTP_PASSWORD) {
                 result = await this.sendViaSMTP(message);
             } else {
-                throw new Error('Email service not configured');
+                throw new Error('Email service not configured. Please set VITE_EMAIL_PROVIDER and credentials.');
             }
 
             await this.logEmail(message, result.success, result.messageId, result.error);
@@ -127,7 +115,7 @@ export const emailService = {
             };
 
             // Call backend API endpoint (server/index.js should have this endpoint)
-            const response = await fetch('/api/send-email', {
+            const response = await fetch('/api/email/send', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -153,15 +141,6 @@ export const emailService = {
      * Send bulk emails (broadcast)
      */
     async sendBulkEmail(recipients: string[], subject: string, html_body: string, plain_body?: string) {
-        if (isMockEnv()) {
-            console.log(`[MOCK] Bulk email to ${recipients.length} recipients`);
-            return {
-                success: true,
-                sent: recipients.length,
-                failed: 0
-            };
-        }
-
         let sent = 0;
         let failed = 0;
 
@@ -195,8 +174,6 @@ export const emailService = {
      * Log email delivery to database
      */
     async logEmail(message: EmailMessage, success: boolean, messageId?: string, error?: string) {
-        if (isMockEnv()) return;
-
         try {
             for (const recipient of message.to) {
                 await pb.collection('email_logs').create({
@@ -226,8 +203,6 @@ export const emailService = {
      * Update email status (for webhooks)
      */
     async updateEmailStatus(messageId: string, status: 'delivered' | 'bounced' | 'opened' | 'clicked') {
-        if (isMockEnv()) return;
-
         try {
             const logs = await pb.collection('email_logs').getList(1, 1, {
                 filter: `provider_message_id = "${messageId}"`,
@@ -235,7 +210,7 @@ export const emailService = {
             });
 
             if (logs.items.length > 0) {
-                const updates: Record<string, any> = { status };
+                const updates: Record<string, unknown> = { status };
                 
                 if (status === 'delivered') {
                     updates.delivered_at = new Date().toISOString();
@@ -254,19 +229,6 @@ export const emailService = {
      * Get delivery statistics
      */
     async getDeliveryStats(startDate?: Date, endDate?: Date) {
-        if (isMockEnv()) {
-            return {
-                sent: 1523,
-                delivered: 1498,
-                failed: 25,
-                bounced: 15,
-                opened: 892,
-                clicked: 423,
-                deliveryRate: 98.4,
-                openRate: 59.5
-            };
-        }
-
         try {
             let filter = '';
             if (startDate) filter += `created >= "${startDate.toISOString()}"`;
@@ -329,10 +291,10 @@ export const emailService = {
                     <h1 style="color: #3b82f6;">Welcome, ${name}!</h1>
                     <p>We are thrilled to have you on board. Grow Your Need is your all-in-one platform for growth.</p>
                     <p>Get started by exploring your dashboard.</p>
-                    <a href="${window.location.origin}/dashboard" style="background: #3b82f6; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Go to Dashboard</a>
+                    <a href="${env.get('appUrl')}/dashboard" style="background: #3b82f6; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Go to Dashboard</a>
                 </div>
             `,
-            plain_body: `Welcome, ${name}! We are thrilled to have you on board. Go to your dashboard: ${window.location.origin}/dashboard`
+            plain_body: `Welcome, ${name}! We are thrilled to have you on board. Go to your dashboard: ${env.get('appUrl')}/dashboard`
         });
     },
 
@@ -340,7 +302,7 @@ export const emailService = {
      * Send password reset email
      */
     async sendPasswordReset(to: string, resetToken: string) {
-        const resetUrl = `${window.location.origin}/reset-password?token=${resetToken}`;
+        const resetUrl = `${env.get('appUrl')}/reset-password?token=${resetToken}`;
         return this.send({
             to: [to],
             from: 'security@growyourneed.com',

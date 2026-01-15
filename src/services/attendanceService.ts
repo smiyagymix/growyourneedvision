@@ -329,10 +329,10 @@ export const attendanceService = {
         const total = records.length;
         if (total === 0) return { present: 0, absent: 0, late: 0, excused: 0, attendanceRate: 0, totalDays: 0 };
 
-        const present = records.filter(r => r.status === 'Present').length;
-        const absent = records.filter(r => r.status === 'Absent').length;
-        const late = records.filter(r => r.status === 'Late').length;
-        const excused = records.filter(r => r.status === 'Excused').length;
+        const present = records.filter(r => r.status.toLowerCase() === 'present').length;
+        const absent = records.filter(r => r.status.toLowerCase() === 'absent').length;
+        const late = records.filter(r => r.status.toLowerCase() === 'late').length;
+        const excused = records.filter(r => r.status.toLowerCase() === 'excused').length;
         const uniqueDays = new Set(records.map(r => r.date)).size;
 
         return {
@@ -372,10 +372,10 @@ export const attendanceService = {
         const total = records.length;
         if (total === 0) return { present: 0, absent: 0, late: 0, excused: 0, attendanceRate: 0, totalDays: 0 };
 
-        const present = records.filter(r => r.status === 'Present').length;
-        const absent = records.filter(r => r.status === 'Absent').length;
-        const late = records.filter(r => r.status === 'Late').length;
-        const excused = records.filter(r => r.status === 'Excused').length;
+        const present = records.filter(r => r.status.toLowerCase() === 'present').length;
+        const absent = records.filter(r => r.status.toLowerCase() === 'absent').length;
+        const late = records.filter(r => r.status.toLowerCase() === 'late').length;
+        const excused = records.filter(r => r.status.toLowerCase() === 'excused').length;
         const uniqueDays = new Set(records.map(r => r.date)).size;
 
         return {

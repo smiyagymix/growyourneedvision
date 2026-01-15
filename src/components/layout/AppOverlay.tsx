@@ -22,6 +22,7 @@ const HobbiesApp = lazy(() => import('../../apps/HobbiesApp'));
 const HelpCenterApp = lazy(() => import('../../apps/HelpCenterApp'));
 const UserProfile = lazy(() => import('../../apps/UserProfile'));
 const TenantMgt = lazy(() => import('../../apps/TenantMgt'));
+const EduMultiverseApp = lazy(() => import('../../apps/EduMultiverseApp'));
 
 interface OverlayProps {
   appName: string | null;
@@ -81,6 +82,7 @@ const AppOverlay: React.FC<OverlayProps> = ({ appName, onClose }) => {
       if (name === 'Overlay Setting') return 'SquaresPlus';
       if (name === 'Platform Settings') return 'Cog6Tooth';
       if (name === 'Hobbies') return 'Hobbies';
+      if (name === 'EduMultiverse') return 'Sparkles';
       return 'Grid';
   };
 
@@ -88,7 +90,7 @@ const AppOverlay: React.FC<OverlayProps> = ({ appName, onClose }) => {
     const props = { 
         activeTab, 
         activeSubNav,
-        onNavigate: (tab: string, subNav?: string) => {
+        onNavigate: (tab: string, subNav?: string, state?: any) => {
             setActiveTab(tab);
             if (subNav) setActiveSubNav(subNav);
         }
@@ -110,6 +112,7 @@ const AppOverlay: React.FC<OverlayProps> = ({ appName, onClose }) => {
         case 'Hobbies': return <HobbiesApp {...props} />;
         case 'Help Center': return <HelpCenterApp {...props} />;
         case 'Tenant Mgt': return <TenantMgt {...props} />;
+        case 'EduMultiverse': return <EduMultiverseApp {...props} />;
         default: return (
              <div className="flex flex-col items-center justify-center h-full text-gray-400">
                 <OwnerIcon name={getAppIconName(appName || '')} className="w-16 h-16 mb-4 opacity-50" />

@@ -6,13 +6,18 @@ import { Mission } from '../types/gamification';
 import { Icon } from '../../../components/shared/ui/CommonUI';
 import { useAuth } from '../../../context/AuthContext';
 
-export const TimeLoopMission: React.FC = () => {
+interface TimeLoopMissionProps {
+    mission?: Mission;
+    onBack?: () => void;
+}
+
+export const TimeLoopMission: React.FC<TimeLoopMissionProps> = ({ mission: propMission, onBack }) => {
     const { user } = useAuth();
     const location = useLocation();
     const navigate = useNavigate();
     
-    const [mission, setMission] = useState<Mission | null>(location.state?.mission || null);
-    const [loading, setLoading] = useState(!location.state?.mission);
+    const [mission, setMission] = useState<Mission | null>(propMission || location.state?.mission || null);
+    const [loading, setLoading] = useState(!(propMission || location.state?.mission));
 
     const [loopCount, setLoopCount] = useState(1);
     const [timeLeft, setTimeLeft] = useState(60);
@@ -24,7 +29,15 @@ export const TimeLoopMission: React.FC = () => {
         if (!mission) {
             loadMission();
         }
-    }, []);
+    }, [mission]);
+
+    const handleBack = () => {
+        if (onBack) {
+            onBack();
+        } else {
+            navigate(-1);
+        }
+    };
 
     const loadMission = async () => {
         try {
@@ -89,7 +102,7 @@ export const TimeLoopMission: React.FC = () => {
             <h2 className="text-2xl font-bold mb-2">No Time Loops Detected</h2>
             <p className="text-indigo-300 mb-6">The timeline appears stable... for now.</p>
             <button 
-                onClick={() => navigate('/apps/edumultiverse')}
+                onClick={handleBack}
                 className="px-6 py-2 bg-indigo-600 rounded-lg hover:bg-indigo-500 transition-colors"
             >
                 Return to Map
@@ -106,7 +119,7 @@ export const TimeLoopMission: React.FC = () => {
             </div>
 
             <button 
-                onClick={() => navigate(-1)} 
+                onClick={handleBack} 
                 className="absolute top-8 left-8 z-20 flex items-center text-indigo-300 hover:text-white transition-colors"
             >
                 <Icon name="ArrowLeft" className="w-5 h-5 mr-2" />
@@ -138,7 +151,7 @@ export const TimeLoopMission: React.FC = () => {
                         </div>
 
                         <button 
-                            onClick={() => navigate(-1)}
+                            onClick={handleBack}
                             className="px-8 py-3 bg-green-600 hover:bg-green-500 text-white font-bold rounded-full transition-colors"
                         >
                             Return to Multiverse

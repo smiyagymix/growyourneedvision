@@ -7,7 +7,7 @@ import { auditLog } from './auditLogger';
  * Handles all user-related operations for the Owner role
  */
 
-export interface User extends RecordModel {
+export interface ManagementUser extends RecordModel {
     name: string;
     email: string;
     role: string;
@@ -19,7 +19,7 @@ export interface User extends RecordModel {
     status?: 'active' | 'suspended' | 'deleted';
 }
 
-export interface CreateUserData {
+export interface CreateManagementUserData {
     name: string;
     email: string;
     password: string;
@@ -28,7 +28,7 @@ export interface CreateUserData {
     emailVisibility?: boolean;
 }
 
-export interface UpdateUserData {
+export interface UpdateManagementUserData {
     name?: string;
     email?: string;
     role?: string;
@@ -36,14 +36,14 @@ export interface UpdateUserData {
     avatar?: File;
 }
 
-export interface UserFilters {
+export interface ManagementUserFilters {
     search?: string;
     role?: string;
     tenant_id?: string;
     status?: 'active' | 'suspended' | 'deleted';
 }
 
-export interface UserStats {
+export interface ManagementUserStats {
     total: number;
     byRole: Record<string, number>;
     byStatus: Record<string, number>;
@@ -56,11 +56,11 @@ class UserManagementService {
     /**
      * Get all users with optional filtering and pagination
      */
-    async getUsers(
+    async getManagementUsers(
         page: number = 1,
         pageSize: number = 50,
-        filters?: UserFilters
-    ): Promise<{ items: User[]; totalItems: number; totalPages: number }> {
+        filters?: ManagementUserFilters
+    ): Promise<{ items: ManagementUser[]; totalItems: number; totalPages: number }> {
         try {
             let filterQuery = '';
             const filterParts: string[] = [];
@@ -84,7 +84,7 @@ class UserManagementService {
 
             filterQuery = filterParts.join(' && ');
 
-            const result = await pb.collection(this.collection).getList<User>(page, pageSize, {
+            const result = await pb.collection(this.collection).getList<ManagementUser>(page, pageSize, {
                 filter: filterQuery || undefined,
                 sort: '-created',
             });
@@ -103,9 +103,9 @@ class UserManagementService {
     /**
      * Get a single user by ID
      */
-    async getUser(userId: string): Promise<User> {
+    async getManagementUser(userId: string): Promise<ManagementUser> {
         try {
-            return await pb.collection(this.collection).getOne<User>(userId);
+            return await pb.collection(this.collection).getOne<ManagementUser>(userId);
         } catch (error) {
             console.error('Failed to fetch user:', error);
             throw error;
@@ -115,7 +115,7 @@ class UserManagementService {
     /**
      * Create a new user
      */
-    async createUser(data: CreateUserData, createdBy?: string): Promise<User> {
+    async createManagementUser(data: CreateManagementUserData, createdBy?: string): Promise<ManagementUser> {
         try {
             const userData = {
                 name: data.name,
@@ -128,18 +128,18 @@ class UserManagementService {
                 status: 'active' as const
             };
 
-            const newUser = await pb.collection(this.collection).create<User>(userData);
+            const newManagementUser = await pb.collection(this.collection).create<ManagementUser>(userData);
 
             // Audit log
             await auditLog.log('user.created', {
                 target_type: 'user',
-                target_id: newUser.id,
-                user_email: newUser.email,
-                user_role: newUser.role,
+                target_id: newManagementUser.id,
+                user_email: newManagementUser.email,
+                user_role: newManagementUser.role,
                 created_by: createdBy || 'system'
             }, 'info');
 
-            return newUser;
+            return newManagementUser;
         } catch (error) {
             console.error('Failed to create user:', error);
             throw error;
@@ -149,7 +149,7 @@ class UserManagementService {
     /**
      * Update an existing user
      */
-    async updateUser(userId: string, data: UpdateUserData, updatedBy?: string): Promise<User> {
+    async updateManagementUser(userId: string, data: UpdateManagementUserData, updatedBy?: string): Promise<ManagementUser> {
         try {
             const updateData: any = {};
 
@@ -163,7 +163,7 @@ class UserManagementService {
                 updateData.avatar = data.avatar;
             }
 
-            const updatedUser = await pb.collection(this.collection).update<User>(userId, updateData);
+            const updatedManagementUser = await pb.collection(this.collection).update<ManagementUser>(userId, updateData);
 
             // Audit log
             await auditLog.log('user.updated', {
@@ -173,7 +173,7 @@ class UserManagementService {
                 updated_by: updatedBy || 'system'
             }, 'info');
 
-            return updatedUser;
+            return updatedManagementUser;
         } catch (error) {
             console.error('Failed to update user:', error);
             throw error;
@@ -183,7 +183,7 @@ class UserManagementService {
     /**
      * Delete a user (soft delete by changing status)
      */
-    async deleteUser(userId: string, deletedBy?: string, hardDelete: boolean = false): Promise<void> {
+    async deleteManagementUser(userId: string, deletedBy?: string, hardDelete: boolean = false): Promise<void> {
         try {
             if (hardDelete) {
                 await pb.collection(this.collection).delete(userId);
@@ -210,9 +210,9 @@ class UserManagementService {
     /**
      * Suspend a user account
      */
-    async suspendUser(userId: string, suspendedBy?: string): Promise<User> {
+    async suspendManagementUser(userId: string, suspendedBy?: string): Promise<ManagementUser> {
         try {
-            const user = await this.updateUser(userId, { status: 'suspended' }, suspendedBy);
+            const user = await this.updateManagementUser(userId, { status: 'suspended' }, suspendedBy);
 
             await auditLog.log('user.suspended', {
                 target_type: 'user',
@@ -230,9 +230,9 @@ class UserManagementService {
     /**
      * Reactivate a suspended user
      */
-    async reactivateUser(userId: string, reactivatedBy?: string): Promise<User> {
+    async reactivateManagementUser(userId: string, reactivatedBy?: string): Promise<ManagementUser> {
         try {
-            const user = await this.updateUser(userId, { status: 'active' }, reactivatedBy);
+            const user = await this.updateManagementUser(userId, { status: 'active' }, reactivatedBy);
 
             await auditLog.log('user.reactivated', {
                 target_type: 'user',
@@ -250,15 +250,15 @@ class UserManagementService {
     /**
      * Get user statistics
      */
-    async getUserStats(): Promise<UserStats> {
+    async getManagementUserStats(): Promise<ManagementUserStats> {
         try {
             // Get all users (we'll process them client-side for stats)
-            const allUsers = await pb.collection(this.collection).getFullList<User>({
+            const allManagementUsers = await pb.collection(this.collection).getFullList<ManagementUser>({
                 filter: 'status != "deleted"'
             });
 
-            const stats: UserStats = {
-                total: allUsers.length,
+            const stats: ManagementUserStats = {
+                total: allManagementUsers.length,
                 byRole: {},
                 byStatus: {},
                 recentlyCreated: 0
@@ -267,7 +267,7 @@ class UserManagementService {
             const sevenDaysAgo = new Date();
             sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-            allUsers.forEach(user => {
+            allManagementUsers.forEach(user => {
                 // Count by role
                 stats.byRole[user.role] = (stats.byRole[user.role] || 0) + 1;
 
@@ -291,7 +291,7 @@ class UserManagementService {
     /**
      * Reset user password (admin function)
      */
-    async resetUserPassword(userId: string, newPassword: string, resetBy?: string): Promise<void> {
+    async resetManagementUserPassword(userId: string, newPassword: string, resetBy?: string): Promise<void> {
         try {
             await pb.collection(this.collection).update(userId, {
                 password: newPassword,
@@ -312,9 +312,9 @@ class UserManagementService {
     /**
      * Bulk operations
      */
-    async bulkUpdateUsers(userIds: string[], updates: Partial<UpdateUserData>, updatedBy?: string): Promise<void> {
+    async bulkUpdateManagementUsers(userIds: string[], updates: Partial<UpdateManagementUserData>, updatedBy?: string): Promise<void> {
         try {
-            const promises = userIds.map(id => this.updateUser(id, updates, updatedBy));
+            const promises = userIds.map(id => this.updateManagementUser(id, updates, updatedBy));
             await Promise.all(promises);
 
             await auditLog.log('user.bulk_updated', {
@@ -333,7 +333,7 @@ class UserManagementService {
     /**
      * Get avatar URL for a user
      */
-    getAvatarUrl(user: User): string | undefined {
+    getAvatarUrl(user: ManagementUser): string | undefined {
         if (!user.avatar) return undefined;
         return pb.files.getUrl(user, user.avatar);
     }

@@ -17,7 +17,7 @@ export interface TenantNotification extends RecordModel {
     message: string;
     type: 'info' | 'warning' | 'error' | 'success';
     priority: 'low' | 'normal' | 'high' | 'urgent';
-    channels: NotificationChannel[];
+    channels: TenantNotificationChannel[];
     status: 'pending' | 'sent' | 'failed';
     scheduledFor?: string;
     sentAt?: string;
@@ -28,23 +28,23 @@ export interface TenantNotification extends RecordModel {
     readBy?: string[]; // User IDs who read it
 }
 
-export type NotificationChannel = 'in-app' | 'email' | 'sms' | 'push' | 'webhook';
+export type TenantNotificationChannel = 'in-app' | 'email' | 'sms' | 'push' | 'webhook';
 
-export interface NotificationTemplate extends RecordModel {
+export interface TenantNotificationTemplate extends RecordModel {
     name: string;
     subject: string;
     body: string;
     type: string;
-    channels: NotificationChannel[];
+    channels: TenantNotificationChannel[];
     variables: string[];
 }
 
-export interface NotificationStats {
+export interface TenantNotificationStats {
     total: number;
     sent: number;
     pending: number;
     failed: number;
-    byChannel: Record<NotificationChannel, number>;
+    byChannel: Record<TenantNotificationChannel, number>;
     byType: Record<string, number>;
     readRate: number;
 }
@@ -119,7 +119,7 @@ class TenantNotificationService {
         await Promise.allSettled(deliveryPromises);
     }
 
-    private async deliverViaChannel(notification: TenantNotification, channel: NotificationChannel): Promise<void> {
+    private async deliverViaChannel(notification: TenantNotification, channel: TenantNotificationChannel): Promise<void> {
         try {
             switch (channel) {
                 case 'in-app':
@@ -173,7 +173,7 @@ class TenantNotificationService {
         title: string,
         message: string,
         type: 'info' | 'warning' | 'error' | 'success',
-        channels: NotificationChannel[]
+        channels: TenantNotificationChannel[]
     ): Promise<TenantNotification[]> {
         if (isMockEnv()) return [];
 
@@ -201,7 +201,7 @@ class TenantNotificationService {
         title: string,
         message: string,
         type: 'info' | 'warning' | 'error' | 'success',
-        channels: NotificationChannel[]
+        channels: TenantNotificationChannel[]
     ): Promise<TenantNotification[]> {
         if (isMockEnv()) return [];
 
@@ -231,16 +231,16 @@ class TenantNotificationService {
 
     // ==================== TEMPLATES ====================
 
-    async getTemplates(): Promise<NotificationTemplate[]> {
+    async getTemplates(): Promise<TenantNotificationTemplate[]> {
         if (isMockEnv()) return [];
 
-        return await pb.collection('notification_templates').getFullList<NotificationTemplate>({
+        return await pb.collection('notification_templates').getFullList<TenantNotificationTemplate>({
             sort: 'name',
             requestKey: null
         });
     }
 
-    async createTemplate(template: Omit<NotificationTemplate, 'id' | 'created' | 'updated' | 'collectionId' | 'collectionName'>): Promise<NotificationTemplate> {
+    async createTemplate(template: Omit<TenantNotificationTemplate, 'id' | 'created' | 'updated' | 'collectionId' | 'collectionName'>): Promise<TenantNotificationTemplate> {
         if (isMockEnv()) {
             return {
                 id: '1',
@@ -249,10 +249,10 @@ class TenantNotificationService {
                 created: new Date().toISOString(),
                 updated: new Date().toISOString(),
                 ...template
-            } as unknown as NotificationTemplate;
+            } as unknown as TenantNotificationTemplate;
         }
 
-        return await pb.collection('notification_templates').create<NotificationTemplate>(template);
+        return await pb.collection('notification_templates').create<TenantNotificationTemplate>(template);
     }
 
     async sendFromTemplate(
@@ -260,7 +260,7 @@ class TenantNotificationService {
         tenantId: string,
         variables: Record<string, string>
     ): Promise<TenantNotification> {
-        const template = await pb.collection('notification_templates').getOne<NotificationTemplate>(templateId);
+        const template = await pb.collection('notification_templates').getOne<TenantNotificationTemplate>(templateId);
 
         let subject = template.subject;
         let body = template.body;
@@ -340,7 +340,7 @@ class TenantNotificationService {
 
     // ==================== STATISTICS ====================
 
-    async getNotificationStats(tenantId?: string): Promise<NotificationStats> {
+    async getTenantNotificationStats(tenantId?: string): Promise<TenantNotificationStats> {
         if (isMockEnv()) {
             return {
                 total: 156,
@@ -374,7 +374,7 @@ class TenantNotificationService {
             requestKey: null
         });
 
-        const stats: NotificationStats = {
+        const stats: TenantNotificationStats = {
             total: notifications.length,
             sent: notifications.filter(n => n.status === 'sent').length,
             pending: notifications.filter(n => n.status === 'pending').length,

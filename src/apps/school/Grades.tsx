@@ -7,7 +7,7 @@ import { Badge } from '../../components/shared/ui/Badge';
 import { Select } from '../../components/shared/ui/Select';
 import { Modal } from '../../components/shared/ui/CommonUI';
 import { OwnerIcon } from '../../components/shared/OwnerIcons';
-import { gradesService, GradeRecord } from '../../services/gradesService';
+import { gradeService, AssessmentRecord } from '../../services/gradeService';
 import { enrollmentService } from '../../services/enrollmentService';
 import pb from '../../lib/pocketbase';
 import { SchoolClass, Student, Exam } from './types';
@@ -35,7 +35,7 @@ const Grades: React.FC<GradesProps> = ({ activeTab, activeSubNav }) => {
     const [classes, setClasses] = useState<SchoolClass[]>([]);
     const [selectedClass, setSelectedClass] = useState<string>('');
     const [students, setStudents] = useState<Student[]>([]);
-    const [grades, setGrades] = useState<GradeRecord[]>([]);
+    const [grades, setGrades] = useState<AssessmentRecord[]>([]);
     const [exams, setExams] = useState<Exam[]>([]);
     const [loading, setLoading] = useState(false);
 
@@ -74,7 +74,7 @@ const Grades: React.FC<GradesProps> = ({ activeTab, activeSubNav }) => {
             setStudents(classStudents);
 
             // 2. Get Grades
-            const classGrades = await gradesService.getClassGrades(selectedClass);
+            const classGrades = await gradeService.getClassGrades(selectedClass);
             setGrades(classGrades);
 
             // 3. Get Exams
@@ -114,7 +114,7 @@ const Grades: React.FC<GradesProps> = ({ activeTab, activeSubNav }) => {
         }
 
         try {
-            await gradesService.submitGrade(result.data as any);
+            await gradeService.submitGrade(result.data as any);
             setIsGradeModalOpen(false);
             fetchClassData(); // Refresh
             // Reset form

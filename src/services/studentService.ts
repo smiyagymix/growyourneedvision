@@ -10,7 +10,7 @@ import { isMockEnv } from '../utils/mockData';
 // INTERFACES
 // ========================================
 
-export interface Course extends RecordModel {
+export interface StudentCourse extends RecordModel {
     student: string;
     name: string;
     code: string;
@@ -25,7 +25,7 @@ export interface Course extends RecordModel {
     color: string;
 }
 
-export interface Assignment extends RecordModel {
+export interface StudentAssignment extends RecordModel {
     student: string;
     course_id: string;
     course_name?: string;
@@ -43,7 +43,7 @@ export interface Assignment extends RecordModel {
     priority: 'low' | 'medium' | 'high';
 }
 
-export interface Grade extends RecordModel {
+export interface StudentGrade extends RecordModel {
     student: string;
     course_id: string;
     course_name: string;
@@ -143,20 +143,20 @@ export interface Announcement extends RecordModel {
 
 class StudentService {
     // Courses
-    async getCourses(studentId: string, status?: Course['status']): Promise<Course[]> {
+    async getCourses(studentId: string, status?: StudentCourse['status']): Promise<StudentCourse[]> {
         try {
             let filter = `student = "${studentId}"`;
             if (status) filter += ` && status = "${status}"`;
-            return await pb.collection('student_courses').getFullList<Course>({ filter });
+            return await pb.collection('student_courses').getFullList<StudentCourse>({ filter });
         } catch (error) {
             console.error('Failed to get courses:', error);
             return [];
         }
     }
 
-    async getCourseById(courseId: string): Promise<Course | null> {
+    async getCourseById(courseId: string): Promise<StudentCourse | null> {
         try {
-            return await pb.collection('student_courses').getOne<Course>(courseId);
+            return await pb.collection('student_courses').getOne<StudentCourse>(courseId);
         } catch (error) {
             console.error('Failed to get course:', error);
             return null;
@@ -164,21 +164,21 @@ class StudentService {
     }
 
     // Assignments
-    async getAssignments(studentId: string, status?: Assignment['status']): Promise<Assignment[]> {
+    async getAssignments(studentId: string, status?: StudentAssignment['status']): Promise<StudentAssignment[]> {
         try {
             let filter = `student = "${studentId}"`;
             if (status) filter += ` && status = "${status}"`;
-            return await pb.collection('student_assignments').getFullList<Assignment>({ filter, sort: 'due_date' });
+            return await pb.collection('student_assignments').getFullList<StudentAssignment>({ filter, sort: 'due_date' });
         } catch (error) {
             console.error('Failed to get assignments:', error);
             return [];
         }
     }
 
-    async getUpcomingAssignments(studentId: string, days: number = 7): Promise<Assignment[]> {
+    async getUpcomingAssignments(studentId: string, days: number = 7): Promise<StudentAssignment[]> {
         const endDate = new Date(Date.now() + days * 86400000).toISOString().split('T')[0];
         try {
-            return await pb.collection('student_assignments').getFullList<Assignment>({
+            return await pb.collection('student_assignments').getFullList<StudentAssignment>({
                 filter: `student = "${studentId}" && status = "pending" && due_date <= "${endDate}"`,
                 sort: 'due_date'
             });
@@ -188,9 +188,9 @@ class StudentService {
         }
     }
 
-    async submitAssignment(assignmentId: string, data: { attachments?: string[]; notes?: string }): Promise<Assignment | null> {
+    async submitAssignment(assignmentId: string, data: { attachments?: string[]; notes?: string }): Promise<StudentAssignment | null> {
         try {
-            return await pb.collection('student_assignments').update<Assignment>(assignmentId, {
+            return await pb.collection('student_assignments').update<StudentAssignment>(assignmentId, {
                 status: 'submitted',
                 submission_date: new Date().toISOString(),
                 ...data
@@ -202,11 +202,11 @@ class StudentService {
     }
 
     // Grades
-    async getGrades(studentId: string, courseId?: string): Promise<Grade[]> {
+    async getGrades(studentId: string, courseId?: string): Promise<StudentGrade[]> {
         try {
             let filter = `student = "${studentId}"`;
             if (courseId) filter += ` && course_id = "${courseId}"`;
-            return await pb.collection('student_grades').getFullList<Grade>({ filter, sort: '-date' });
+            return await pb.collection('student_grades').getFullList<StudentGrade>({ filter, sort: '-date' });
         } catch (error) {
             console.error('Failed to get grades:', error);
             return [];

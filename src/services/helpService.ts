@@ -12,7 +12,7 @@ export interface FAQItem {
     created: string;
 }
 
-export interface SupportTicket {
+export interface HelpSupportTicket {
     id: string;
     user: string;
     subject: string;
@@ -26,7 +26,7 @@ export interface SupportTicket {
     updated: string;
 }
 
-export interface TicketReply {
+export interface HelpTicketReply {
     id: string;
     ticket: string;
     user: string;
@@ -35,7 +35,7 @@ export interface TicketReply {
     created: string;
 }
 
-export interface KnowledgeArticle {
+export interface HelpKnowledgeArticle {
     id: string;
     title: string;
     content: string;
@@ -92,7 +92,7 @@ const MOCK_FAQS: FAQItem[] = [
     }
 ];
 
-const MOCK_SUPPORT_TICKETS: SupportTicket[] = [
+const MOCK_SUPPORT_TICKETS: HelpSupportTicket[] = [
     {
         id: 'support-1',
         user: 'user-1',
@@ -118,7 +118,7 @@ const MOCK_SUPPORT_TICKETS: SupportTicket[] = [
     }
 ];
 
-const MOCK_KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
+const MOCK_KNOWLEDGE_ARTICLES: HelpKnowledgeArticle[] = [
     {
         id: 'ka-1',
         title: 'Getting Started Guide',
@@ -264,32 +264,32 @@ export const helpService = {
     },
 
     // Support Tickets
-    getAllTickets: async (): Promise<SupportTicket[]> => {
+    getAllTickets: async (): Promise<HelpSupportTicket[]> => {
         if (isMockEnv()) {
             return MOCK_SUPPORT_TICKETS;
         }
 
-        return await pb.collection('support_tickets').getFullList<SupportTicket>({
+        return await pb.collection('support_tickets').getFullList<HelpSupportTicket>({
             sort: '-created',
             expand: 'user,assigned_to'
         });
     },
 
-    getUserTickets: async (userId: string): Promise<SupportTicket[]> => {
+    getUserTickets: async (userId: string): Promise<HelpSupportTicket[]> => {
         if (isMockEnv()) {
             return MOCK_SUPPORT_TICKETS.filter(t => t.user === userId);
         }
 
-        return await pb.collection('support_tickets').getFullList<SupportTicket>({
+        return await pb.collection('support_tickets').getFullList<HelpSupportTicket>({
             filter: `user = "${userId}"`,
             sort: '-created',
             expand: 'assigned_to'
         });
     },
 
-    createTicket: async (data: Partial<SupportTicket>): Promise<SupportTicket> => {
+    createTicket: async (data: Partial<HelpSupportTicket>): Promise<HelpSupportTicket> => {
         if (isMockEnv()) {
-            const newTicket: SupportTicket = {
+            const newTicket: HelpSupportTicket = {
                 id: `support-${Date.now()}`,
                 user: data.user || '',
                 subject: data.subject || '',
@@ -307,7 +307,7 @@ export const helpService = {
         return await pb.collection('support_tickets').create(data);
     },
 
-    updateTicket: async (id: string, data: Partial<SupportTicket>): Promise<SupportTicket | null> => {
+    updateTicket: async (id: string, data: Partial<HelpSupportTicket>): Promise<HelpSupportTicket | null> => {
         if (isMockEnv()) {
             const ticket = MOCK_SUPPORT_TICKETS.find(t => t.id === id);
             if (ticket) {
@@ -319,19 +319,19 @@ export const helpService = {
         return await pb.collection('support_tickets').update(id, data);
     },
 
-    getTicketReplies: async (ticketId: string): Promise<TicketReply[]> => {
+    getTicketReplies: async (ticketId: string): Promise<HelpTicketReply[]> => {
         if (isMockEnv()) {
             return []; // Could add mock replies
         }
 
-        return await pb.collection('ticket_replies').getFullList<TicketReply>({
+        return await pb.collection('ticket_replies').getFullList<HelpTicketReply>({
             filter: `ticket = "${ticketId}"`,
             sort: 'created',
             expand: 'user'
         });
     },
 
-    addTicketReply: async (ticketId: string, userId: string, message: string, isStaff: boolean = false): Promise<TicketReply> => {
+    addTicketReply: async (ticketId: string, userId: string, message: string, isStaff: boolean = false): Promise<HelpTicketReply> => {
         if (isMockEnv()) {
             return {
                 id: `reply-${Date.now()}`,
@@ -352,29 +352,29 @@ export const helpService = {
     },
 
     // Knowledge Base
-    getPublishedArticles: async (): Promise<KnowledgeArticle[]> => {
+    getPublishedArticles: async (): Promise<HelpKnowledgeArticle[]> => {
         if (isMockEnv()) {
             return MOCK_KNOWLEDGE_ARTICLES.filter(a => a.published);
         }
 
-        return await pb.collection('knowledge_articles').getFullList<KnowledgeArticle>({
+        return await pb.collection('knowledge_articles').getFullList<HelpKnowledgeArticle>({
             filter: 'published = true',
             sort: '-created'
         });
     },
 
-    getArticlesByCategory: async (category: string): Promise<KnowledgeArticle[]> => {
+    getArticlesByCategory: async (category: string): Promise<HelpKnowledgeArticle[]> => {
         if (isMockEnv()) {
             return MOCK_KNOWLEDGE_ARTICLES.filter(a => a.category === category && a.published);
         }
 
-        return await pb.collection('knowledge_articles').getFullList<KnowledgeArticle>({
+        return await pb.collection('knowledge_articles').getFullList<HelpKnowledgeArticle>({
             filter: `category = "${category}" && published = true`,
             sort: '-views'
         });
     },
 
-    searchArticles: async (query: string): Promise<KnowledgeArticle[]> => {
+    searchArticles: async (query: string): Promise<HelpKnowledgeArticle[]> => {
         if (isMockEnv()) {
             const lowerQuery = query.toLowerCase();
             return MOCK_KNOWLEDGE_ARTICLES.filter(a => 
@@ -385,19 +385,19 @@ export const helpService = {
             );
         }
 
-        return await pb.collection('knowledge_articles').getFullList<KnowledgeArticle>({
+        return await pb.collection('knowledge_articles').getFullList<HelpKnowledgeArticle>({
             filter: `(title ~ "${query}" || content ~ "${query}") && published = true`,
             sort: '-helpful_count'
         });
     },
 
-    getArticleById: async (id: string): Promise<KnowledgeArticle | null> => {
+    getArticleById: async (id: string): Promise<HelpKnowledgeArticle | null> => {
         if (isMockEnv()) {
             return MOCK_KNOWLEDGE_ARTICLES.find(a => a.id === id) || null;
         }
 
         try {
-            return await pb.collection('knowledge_articles').getOne<KnowledgeArticle>(id, {
+            return await pb.collection('knowledge_articles').getOne<HelpKnowledgeArticle>(id, {
                 expand: 'author'
             });
         } catch {

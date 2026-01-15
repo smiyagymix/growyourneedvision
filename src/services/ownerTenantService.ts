@@ -8,7 +8,7 @@ import { isMockEnv } from '../utils/mockData';
 import { auditLogger } from './auditLogger';
 import { emailTemplateService } from './emailTemplateService';
 
-export interface BulkOperationResult {
+export interface TenantBulkOperationResult {
     success: boolean;
     successCount: number;
     failureCount: number;
@@ -27,7 +27,7 @@ export async function bulkSuspendTenants(
     tenantIds: string[],
     reason: string,
     userId: string
-): Promise<BulkOperationResult> {
+): Promise<TenantBulkOperationResult> {
     if (isMockEnv()) {
         return {
             success: true,
@@ -41,7 +41,7 @@ export async function bulkSuspendTenants(
         };
     }
 
-    const results: BulkOperationResult['results'] = [];
+    const results: TenantBulkOperationResult['results'] = [];
     let successCount = 0;
     let failureCount = 0;
 
@@ -102,7 +102,7 @@ export async function bulkSuspendTenants(
 export async function bulkActivateTenants(
     tenantIds: string[],
     userId: string
-): Promise<BulkOperationResult> {
+): Promise<TenantBulkOperationResult> {
     if (isMockEnv()) {
         return {
             success: true,
@@ -116,7 +116,7 @@ export async function bulkActivateTenants(
         };
     }
 
-    const results: BulkOperationResult['results'] = [];
+    const results: TenantBulkOperationResult['results'] = [];
     let successCount = 0;
     let failureCount = 0;
 
@@ -178,7 +178,7 @@ export async function bulkUpdateTenantPlan(
     tenantIds: string[],
     newPlan: string,
     userId: string
-): Promise<BulkOperationResult> {
+): Promise<TenantBulkOperationResult> {
     if (isMockEnv()) {
         return {
             success: true,
@@ -192,7 +192,7 @@ export async function bulkUpdateTenantPlan(
         };
     }
 
-    const results: BulkOperationResult['results'] = [];
+    const results: TenantBulkOperationResult['results'] = [];
     let successCount = 0;
     let failureCount = 0;
 
@@ -253,7 +253,7 @@ export async function bulkArchiveTenants(
     tenantIds: string[],
     reason: string,
     userId: string
-): Promise<BulkOperationResult> {
+): Promise<TenantBulkOperationResult> {
     if (isMockEnv()) {
         return {
             success: true,
@@ -267,7 +267,7 @@ export async function bulkArchiveTenants(
         };
     }
 
-    const results: BulkOperationResult['results'] = [];
+    const results: TenantBulkOperationResult['results'] = [];
     let successCount = 0;
     let failureCount = 0;
 
@@ -335,7 +335,7 @@ export async function bulkNotifyTenants(
         type: 'info' | 'warning' | 'success' | 'error';
     },
     userId: string
-): Promise<BulkOperationResult> {
+): Promise<TenantBulkOperationResult> {
     if (isMockEnv()) {
         return {
             success: true,
@@ -349,7 +349,7 @@ export async function bulkNotifyTenants(
         };
     }
 
-    const results: BulkOperationResult['results'] = [];
+    const results: TenantBulkOperationResult['results'] = [];
     let successCount = 0;
     let failureCount = 0;
 

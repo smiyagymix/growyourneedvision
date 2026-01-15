@@ -1,8 +1,10 @@
 import pb from '../lib/pocketbase';
 import { auditLog } from './auditLogger';
-import { isMockEnv } from '../utils/mockData';
 import { RecordModel } from 'pocketbase';
 import { z } from 'zod';
+import { notificationService } from './notificationService';
+import { emailService } from './emailService';
+import { smsService } from './smsService';
 
 export interface BroadcastMessage extends RecordModel {
     id: string;
@@ -65,39 +67,6 @@ export const broadcastMessageSchema = z.object({
 
 export type BroadcastMessage = z.infer<typeof broadcastMessageSchema>;
 
-const MOCK_BROADCASTS: BroadcastMessage[] = [
-    {
-        id: 'broadcast-1',
-        collectionId: 'mock',
-        collectionName: 'broadcast_messages',
-        created: new Date().toISOString(),
-        updated: new Date().toISOString(),
-        subject: 'Platform Maintenance Notice',
-        message: 'We will be performing scheduled maintenance on Saturday from 2-4 AM EST.',
-        target_audience: 'all',
-        priority: 'high',
-        channels: { email: true, inApp: true, sms: false },
-        sent_at: new Date().toISOString(),
-        sent_by: 'owner-1',
-        recipient_count: 150,
-        status: 'sent'
-    },
-    {
-        id: 'broadcast-2',
-        collectionId: 'mock',
-        collectionName: 'broadcast_messages',
-        created: new Date().toISOString(),
-        updated: new Date().toISOString(),
-        subject: 'New Feature Announcement',
-        message: 'Exciting news! We have launched our new AI-powered grading assistant.',
-        target_audience: 'schools',
-        priority: 'normal',
-        channels: { email: true, inApp: true, sms: false },
-        sent_by: 'owner-1',
-        status: 'draft'
-    }
-];
-
 function parseBroadcast(raw: unknown): BroadcastMessage | null {
     const res = broadcastMessageSchema.safeParse(raw);
     if (!res.success) {
@@ -114,10 +83,6 @@ class BroadcastService {
      * Get all broadcast messages
      */
     async getAll(): Promise<BroadcastMessage[]> {
-        if (isMockEnv()) {
-            return MOCK_BROADCASTS;
-        }
-
         try {
             const records = await pb.collection(this.collection).getFullList({
                 sort: '-created',
@@ -134,10 +99,6 @@ class BroadcastService {
      * Get a single broadcast by ID
      */
     async getById(id: string): Promise<BroadcastMessage | null> {
-        if (isMockEnv()) {
-            return MOCK_BROADCASTS.find(b => b.id === id) || null;
-        }
-
         try {
             const record = await pb.collection(this.collection).getOne(id, {
                 requestKey: null
@@ -153,21 +114,6 @@ class BroadcastService {
      * Create a draft broadcast (not sent yet)
      */
     async create(data: CreateBroadcastData): Promise<BroadcastMessage | null> {
-        if (isMockEnv()) {
-            const newBroadcast: BroadcastMessage = {
-                id: `broadcast-${Date.now()}`,
-                collectionId: 'mock',
-                collectionName: 'broadcast_messages',
-                created: new Date().toISOString(),
-                updated: new Date().toISOString(),
-                ...data,
-                status: data.status || 'draft',
-                recipient_count: 0
-            };
-            MOCK_BROADCASTS.unshift(newBroadcast);
-            return newBroadcast;
-        }
-
         try {
             const record = await pb.collection(this.collection).create({
                 ...data,
@@ -191,19 +137,6 @@ class BroadcastService {
      * Update a broadcast (only drafts can be updated)
      */
     async update(id: string, data: Partial<CreateBroadcastData>): Promise<BroadcastMessage | null> {
-        if (isMockEnv()) {
-            const idx = MOCK_BROADCASTS.findIndex(b => b.id === id);
-            if (idx >= 0 && MOCK_BROADCASTS[idx].status === 'draft') {
-                MOCK_BROADCASTS[idx] = {
-                    ...MOCK_BROADCASTS[idx],
-                    ...data,
-                    updated: new Date().toISOString()
-                };
-                return MOCK_BROADCASTS[idx];
-            }
-            return null;
-        }
-
         try {
             const existing = await this.getById(id);
             if (existing?.status !== 'draft') {
@@ -222,15 +155,6 @@ class BroadcastService {
      * Delete a broadcast (only drafts can be deleted)
      */
     async delete(id: string): Promise<boolean> {
-        if (isMockEnv()) {
-            const idx = MOCK_BROADCASTS.findIndex(b => b.id === id);
-            if (idx >= 0 && MOCK_BROADCASTS[idx].status === 'draft') {
-                MOCK_BROADCASTS.splice(idx, 1);
-                return true;
-            }
-            return false;
-        }
-
         try {
             const existing = await this.getById(id);
             if (existing?.status !== 'draft') {
@@ -250,23 +174,6 @@ class BroadcastService {
      * Send a broadcast immediately
      */
     async send(data: CreateBroadcastData): Promise<BroadcastMessage | null> {
-        if (isMockEnv()) {
-            const recipientCount = await this.estimateRecipientCount(data.target_audience);
-            const newBroadcast: BroadcastMessage = {
-                id: `broadcast-${Date.now()}`,
-                collectionId: 'mock',
-                collectionName: 'broadcast_messages',
-                created: new Date().toISOString(),
-                updated: new Date().toISOString(),
-                ...data,
-                sent_at: new Date().toISOString(),
-                recipient_count: recipientCount,
-                status: 'sent'
-            };
-            MOCK_BROADCASTS.unshift(newBroadcast);
-            return newBroadcast;
-        }
-
         try {
             const recipientCount = await this.estimateRecipientCount(data.target_audience);
 
@@ -306,22 +213,6 @@ class BroadcastService {
             return null;
         }
 
-        if (isMockEnv()) {
-            const idx = MOCK_BROADCASTS.findIndex(b => b.id === id);
-            if (idx >= 0) {
-                const recipientCount = await this.estimateRecipientCount(draft.target_audience);
-                MOCK_BROADCASTS[idx] = {
-                    ...MOCK_BROADCASTS[idx],
-                    sent_at: new Date().toISOString(),
-                    recipient_count: recipientCount,
-                    status: 'sent',
-                    updated: new Date().toISOString()
-                };
-                return MOCK_BROADCASTS[idx];
-            }
-            return null;
-        }
-
         try {
             const recipientCount = await this.estimateRecipientCount(draft.target_audience);
 
@@ -351,20 +242,6 @@ class BroadcastService {
      * Schedule a broadcast for later
      */
     async schedule(id: string, scheduledFor: string): Promise<BroadcastMessage | null> {
-        if (isMockEnv()) {
-            const idx = MOCK_BROADCASTS.findIndex(b => b.id === id);
-            if (idx >= 0 && MOCK_BROADCASTS[idx].status === 'draft') {
-                MOCK_BROADCASTS[idx] = {
-                    ...MOCK_BROADCASTS[idx],
-                    scheduled_for: scheduledFor,
-                    status: 'scheduled',
-                    updated: new Date().toISOString()
-                };
-                return MOCK_BROADCASTS[idx];
-            }
-            return null;
-        }
-
         try {
             const record = await pb.collection(this.collection).update(id, {
                 scheduled_for: scheduledFor,
@@ -386,15 +263,21 @@ class BroadcastService {
     /**
      * Dispatch messages to enabled channels
      */
-    private async dispatchToChannels(data: CreateBroadcastData, recipientCount: number): Promise<void> {
+    private async dispatchToChannels(data: CreateBroadcastData | BroadcastMessage, recipientCount: number): Promise<void> {
         const results: { channel: string; success: boolean; error?: string }[] = [];
 
         try {
             if (data.channels.email) {
                 try {
                     console.log('[Broadcast] Sending email broadcast to', recipientCount, 'recipients');
-                    // Integration point for email service
-                    // await emailService.sendBulk(data.subject, data.message, recipients);
+                    await notificationService.broadcast({
+                        title: data.subject,
+                        message: data.message,
+                        type: 'announcement',
+                        category: 'announcement',
+                        priority: data.priority === 'urgent' ? 'high' : data.priority === 'high' ? 'medium' : 'low',
+                        channels: ['email']
+                    });
                     results.push({ channel: 'email', success: true });
                 } catch (err) {
                     results.push({ channel: 'email', success: false, error: String(err) });
@@ -404,8 +287,14 @@ class BroadcastService {
             if (data.channels.inApp) {
                 try {
                     console.log('[Broadcast] Creating in-app notifications for', recipientCount, 'users');
-                    // Integration point for notification service
-                    // await notificationService.createBulk({ title: data.subject, message: data.message, ...});
+                    await notificationService.broadcast({
+                        title: data.subject,
+                        message: data.message,
+                        type: 'announcement',
+                        category: 'announcement',
+                        priority: data.priority === 'urgent' ? 'high' : data.priority === 'high' ? 'medium' : 'low',
+                        channels: ['in_app']
+                    });
                     results.push({ channel: 'inApp', success: true });
                 } catch (err) {
                     results.push({ channel: 'inApp', success: false, error: String(err) });
@@ -415,8 +304,14 @@ class BroadcastService {
             if (data.channels.sms) {
                 try {
                     console.log('[Broadcast] Sending SMS to', recipientCount, 'recipients');
-                    // Integration point for SMS service (Twilio/AWS SNS)
-                    // await smsService.sendBulk(data.message, phoneNumbers);
+                    await notificationService.broadcast({
+                        title: data.subject,
+                        message: data.message,
+                        type: 'announcement',
+                        category: 'announcement',
+                        priority: data.priority === 'urgent' ? 'high' : data.priority === 'high' ? 'medium' : 'low',
+                        channels: ['sms']
+                    });
                     results.push({ channel: 'sms', success: true });
                 } catch (err) {
                     results.push({ channel: 'sms', success: false, error: String(err) });
@@ -439,17 +334,6 @@ class BroadcastService {
      * Estimate recipient count based on target audience
      */
     async estimateRecipientCount(target: BroadcastMessage['target_audience']): Promise<number> {
-        if (isMockEnv()) {
-            switch (target) {
-                case 'all': return 150;
-                case 'schools': return 100;
-                case 'individuals': return 50;
-                case 'active': return 120;
-                case 'trial': return 30;
-                default: return 150;
-            }
-        }
-
         try {
             const tenants = await pb.collection('tenants').getList(1, 1, { requestKey: null });
             const totalTenants = tenants.totalItems;
@@ -472,10 +356,6 @@ class BroadcastService {
      * Get sent messages only
      */
     async getSentMessages(): Promise<BroadcastMessage[]> {
-        if (isMockEnv()) {
-            return MOCK_BROADCASTS.filter(b => b.status === 'sent');
-        }
-
         try {
             const records = await pb.collection(this.collection).getFullList({
                 filter: 'status = "sent"',
@@ -493,10 +373,6 @@ class BroadcastService {
      * Get drafts only
      */
     async getDrafts(): Promise<BroadcastMessage[]> {
-        if (isMockEnv()) {
-            return MOCK_BROADCASTS.filter(b => b.status === 'draft');
-        }
-
         try {
             const records = await pb.collection(this.collection).getFullList({
                 filter: 'status = "draft"',
@@ -514,10 +390,6 @@ class BroadcastService {
      * Get scheduled messages
      */
     async getScheduled(): Promise<BroadcastMessage[]> {
-        if (isMockEnv()) {
-            return MOCK_BROADCASTS.filter(b => b.status === 'scheduled');
-        }
-
         try {
             const records = await pb.collection(this.collection).getFullList({
                 filter: 'status = "scheduled"',
@@ -535,10 +407,6 @@ class BroadcastService {
      * Get messages by priority
      */
     async getByPriority(priority: BroadcastMessage['priority']): Promise<BroadcastMessage[]> {
-        if (isMockEnv()) {
-            return MOCK_BROADCASTS.filter(b => b.priority === priority);
-        }
-
         try {
             const records = await pb.collection(this.collection).getFullList({
                 filter: `priority = "${priority}"`,

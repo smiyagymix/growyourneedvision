@@ -32,7 +32,7 @@ export interface BulkOperationOptions {
     validateOnly?: boolean;
 }
 
-export interface BulkOperationResult {
+export interface BulkUserOperationResult {
     success: boolean;
     operationId: string;
     total: number;
@@ -213,7 +213,7 @@ class BulkUserOperationsService {
     /**
      * Bulk change user roles
      */
-    async changeUserRoles(userIds: string[], newRole: string): Promise<BulkOperationResult> {
+    async changeUserRoles(userIds: string[], newRole: string): Promise<BulkUserOperationResult> {
         return this.executeBulkOperation({
             type: 'role_change',
             userIds,
@@ -224,7 +224,7 @@ class BulkUserOperationsService {
     /**
      * Bulk update user status
      */
-    async updateUserStatus(userIds: string[], status: 'active' | 'suspended' | 'inactive'): Promise<BulkOperationResult> {
+    async updateUserStatus(userIds: string[], status: 'active' | 'suspended' | 'inactive'): Promise<BulkUserOperationResult> {
         return this.executeBulkOperation({
             type: 'status_update',
             userIds,
@@ -235,7 +235,7 @@ class BulkUserOperationsService {
     /**
      * Bulk send message to users
      */
-    async sendBulkMessage(userIds: string[], message: { subject: string; body: string }): Promise<BulkOperationResult> {
+    async sendBulkMessage(userIds: string[], message: { subject: string; body: string }): Promise<BulkUserOperationResult> {
         return this.executeBulkOperation({
             type: 'send_message',
             userIds,
@@ -246,7 +246,7 @@ class BulkUserOperationsService {
     /**
      * Bulk delete users (soft delete)
      */
-    async bulkDeleteUsers(userIds: string[], permanent: boolean = false): Promise<BulkOperationResult> {
+    async bulkDeleteUsers(userIds: string[], permanent: boolean = false): Promise<BulkUserOperationResult> {
         return this.executeBulkOperation({
             type: 'delete',
             userIds,
@@ -257,7 +257,7 @@ class BulkUserOperationsService {
     /**
      * Execute bulk operation synchronously
      */
-    private async executeBulkOperation(options: BulkOperationOptions): Promise<BulkOperationResult> {
+    private async executeBulkOperation(options: BulkOperationOptions): Promise<BulkUserOperationResult> {
         try {
             const operation = await this.startBulkOperation(options);
             

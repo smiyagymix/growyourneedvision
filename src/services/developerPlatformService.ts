@@ -6,7 +6,7 @@ import type { RecordModel } from "pocketbase";
 // TYPES
 // ============================================
 
-export interface APIKey extends RecordModel {
+export interface DeveloperAPIKey extends RecordModel {
   userId: string;
   keyName: string;
   keyType: "public" | "secret";
@@ -83,7 +83,7 @@ export interface APIUsageLog extends RecordModel {
 // MOCK DATA
 // ============================================
 
-const MOCK_API_KEYS: APIKey[] = [
+const MOCK_API_KEYS: DeveloperAPIKey[] = [
   {
     id: "key1",
     userId: "user1",
@@ -213,10 +213,10 @@ const MOCK_WEBHOOKS: Webhook[] = [
 // ============================================
 
 export const apiKeyService = {
-  async getAll(userId: string): Promise<APIKey[]> {
+  async getAll(userId: string): Promise<DeveloperAPIKey[]> {
     if (isMockEnv()) return MOCK_API_KEYS.filter((k) => k.userId === userId);
 
-    return pb.collection("api_keys").getFullList<APIKey>({
+    return pb.collection("api_keys").getFullList<DeveloperAPIKey>({
       filter: `userId = "${userId}"`,
       sort: "-created",
       requestKey: null,
@@ -229,9 +229,9 @@ export const apiKeyService = {
     keyType: "public" | "secret";
     rateLimit: number;
     scopes: string[];
-  }): Promise<APIKey> {
+  }): Promise<DeveloperAPIKey> {
     if (isMockEnv()) {
-      const newKey: APIKey = {
+      const newKey: DeveloperAPIKey = {
         id: `key${Date.now()}`,
         ...data,
         keyHash: `${data.keyType === "secret" ? "sk" : "pk"}_test_xxx`,
@@ -246,7 +246,7 @@ export const apiKeyService = {
       return newKey;
     }
 
-    return pb.collection("api_keys").create<APIKey>(data, {
+    return pb.collection("api_keys").create<DeveloperAPIKey>(data, {
       requestKey: null,
     });
   },
@@ -258,12 +258,12 @@ export const apiKeyService = {
     return true;
   },
 
-  async toggleActive(keyId: string, isActive: boolean): Promise<APIKey> {
+  async toggleActive(keyId: string, isActive: boolean): Promise<DeveloperAPIKey> {
     if (isMockEnv()) {
       return MOCK_API_KEYS.find((k) => k.id === keyId)!;
     }
 
-    return pb.collection("api_keys").update<APIKey>(keyId, { isActive }, {
+    return pb.collection("api_keys").update<DeveloperAPIKey>(keyId, { isActive }, {
       requestKey: null,
     });
   },

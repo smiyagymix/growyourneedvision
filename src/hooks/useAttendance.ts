@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { attendanceService, AttendanceRecord } from '../services/AttendanceService';
+import { attendanceService, AttendanceRecord } from '../services/attendanceService';
 import { Logger } from '../utils/logging';
 import { normalizeError, AppError } from '../utils/errorHandling';
 

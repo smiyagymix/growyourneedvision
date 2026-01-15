@@ -9,7 +9,7 @@ import { RecordModel } from 'pocketbase';
 import { isMockEnv } from '../utils/mockData';
 import * as Sentry from '@sentry/react';
 
-export interface APIKey extends RecordModel {
+export interface ManagementAPIKey extends RecordModel {
     name: string;
     key: string;
     tenantId: string;
@@ -25,7 +25,7 @@ export interface APIKey extends RecordModel {
     allowedOrigins?: string[];
 }
 
-export interface APIKeyUsage extends RecordModel {
+export interface ManagementAPIKeyUsage extends RecordModel {
     keyId: string;
     endpoint: string;
     method: string;
@@ -48,7 +48,7 @@ export interface UsageStatistics {
 }
 
 // Mock data
-const MOCK_KEYS: APIKey[] = [
+const MOCK_KEYS: ManagementAPIKey[] = [
     {
         id: '1',
         name: 'Production API',
@@ -71,7 +71,7 @@ const MOCK_KEYS: APIKey[] = [
     }
 ];
 
-class APIKeyManagementService {
+class ManagementAPIKeyManagementService {
     /**
      * Generate new API key
      */
@@ -85,7 +85,7 @@ class APIKeyManagementService {
             ipWhitelist?: string[];
             allowedOrigins?: string[];
         } = {}
-    ): Promise<{ key: APIKey; plainKey: string }> {
+    ): Promise<{ key: ManagementAPIKey; plainKey: string }> {
         return await Sentry.startSpan(
             {
                 name: 'Create API Key',
@@ -126,7 +126,7 @@ class APIKeyManagementService {
                 createdBy: pb.authStore.model?.id,
                 ipWhitelist: options.ipWhitelist || [],
                 allowedOrigins: options.allowedOrigins || []
-            }) as unknown as APIKey;
+            }) as unknown as ManagementAPIKey;
 
             // Return both the record and plain key (only time it's visible)
             return {
@@ -148,7 +148,7 @@ class APIKeyManagementService {
         tenantId?: string,
         page: number = 1,
         perPage: number = 20
-    ): Promise<{ items: APIKey[]; totalPages: number }> {
+    ): Promise<{ items: ManagementAPIKey[]; totalPages: number }> {
         try {
             if (isMockEnv()) {
                 return { items: MOCK_KEYS, totalPages: 1 };
@@ -156,7 +156,7 @@ class APIKeyManagementService {
 
             const filter = tenantId ? `tenantId = "${tenantId}"` : '';
 
-            const result = await pb.collection('api_keys').getList<APIKey>(
+            const result = await pb.collection('api_keys').getList<ManagementAPIKey>(
                 page,
                 perPage,
                 {
@@ -178,8 +178,8 @@ class APIKeyManagementService {
      */
     async updateKeyStatus(
         keyId: string,
-        status: APIKey['status']
-    ): Promise<APIKey> {
+        status: ManagementAPIKey['status']
+    ): Promise<ManagementAPIKey> {
         try {
             if (isMockEnv()) {
                 return { ...MOCK_KEYS[0], status };
@@ -217,7 +217,7 @@ class APIKeyManagementService {
     async updatePermissions(
         keyId: string,
         permissions: string[]
-    ): Promise<APIKey> {
+    ): Promise<ManagementAPIKey> {
         try {
             if (isMockEnv()) {
                 return { ...MOCK_KEYS[0], permissions };
@@ -270,7 +270,7 @@ class APIKeyManagementService {
             const startDate = new Date();
             startDate.setDate(startDate.getDate() - days);
 
-            const usage = await pb.collection('api_key_usage').getFullList<APIKeyUsage>({
+            const usage = await pb.collection('api_key_usage').getFullList<ManagementAPIKeyUsage>({
                 filter: `keyId = "${keyId}" && timestamp >= "${startDate.toISOString()}"`,
                 requestKey: null
             });
@@ -333,7 +333,7 @@ class APIKeyManagementService {
     /**
      * Rotate key
      */
-    async rotateKey(keyId: string): Promise<{ key: APIKey; plainKey: string }> {
+    async rotateKey(keyId: string): Promise<{ key: ManagementAPIKey; plainKey: string }> {
         try {
             if (isMockEnv()) {
                 return {
@@ -342,7 +342,7 @@ class APIKeyManagementService {
                 };
             }
 
-            const oldKey = await pb.collection('api_keys').getOne<APIKey>(keyId);
+            const oldKey = await pb.collection('api_keys').getOne<ManagementAPIKey>(keyId);
 
             // Generate new key
             const prefix = 'gyn_sk_';
@@ -355,7 +355,7 @@ class APIKeyManagementService {
             const updatedKey = await pb.collection('api_keys').update(keyId, {
                 key: hashedKey,
                 rotatedAt: new Date()
-            }) as unknown as APIKey;
+            }) as unknown as ManagementAPIKey;
 
             return {
                 key: updatedKey,
@@ -424,4 +424,4 @@ class APIKeyManagementService {
     }
 }
 
-export const apiKeyManagementService = new APIKeyManagementService();
+export const apiKeyManagementService = new ManagementAPIKeyManagementService();

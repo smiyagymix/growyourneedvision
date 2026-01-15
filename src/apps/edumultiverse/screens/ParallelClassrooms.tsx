@@ -6,8 +6,15 @@ import { Timeline, Mission } from '../types/gamification';
 import { LoadingScreen } from '../../../components/shared/LoadingScreen';
 import { Icon } from '../../../components/shared/ui/CommonUI';
 
-export const ParallelClassrooms: React.FC = () => {
-    const { universeId } = useParams<{ universeId: string }>();
+interface ParallelClassroomsProps {
+    universeId?: string;
+    onBack?: () => void;
+    onNavigate?: (tab: string, subNav?: string, state?: any) => void;
+}
+
+export const ParallelClassrooms: React.FC<ParallelClassroomsProps> = ({ universeId: propUniverseId, onBack, onNavigate }) => {
+    const { universeId: paramUniverseId } = useParams<{ universeId: string }>();
+    const universeId = propUniverseId || paramUniverseId;
     const navigate = useNavigate();
     const [timelines, setTimelines] = useState<Timeline[]>([]);
     const [missions, setMissions] = useState<Record<string, Mission[]>>({});
@@ -40,6 +47,14 @@ export const ParallelClassrooms: React.FC = () => {
         }
     };
 
+    const handleBack = () => {
+        if (onBack) {
+            onBack();
+        } else {
+            navigate(-1);
+        }
+    };
+
     if (loading) return <LoadingScreen />;
 
     return (
@@ -47,7 +62,7 @@ export const ParallelClassrooms: React.FC = () => {
             {/* Header */}
             <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/90 backdrop-blur sticky top-0 z-50 shadow-lg">
                 <button
-                    onClick={() => navigate(-1)}
+                    onClick={handleBack}
                     className="text-slate-400 hover:text-white flex items-center gap-2 transition-colors"
                 >
                     <Icon name="ArrowLeft" className="w-4 h-4" /> Back to Map
@@ -66,6 +81,7 @@ export const ParallelClassrooms: React.FC = () => {
                             key={timeline.id}
                             timeline={timeline}
                             missions={missions[timeline.id] || []}
+                            onNavigate={onNavigate}
                         />
                     ))}
                 </div>
@@ -79,7 +95,11 @@ export const ParallelClassrooms: React.FC = () => {
     );
 };
 
-const TimelineTrack: React.FC<{ timeline: Timeline; missions: Mission[] }> = ({ timeline, missions }) => {
+const TimelineTrack: React.FC<{ 
+    timeline: Timeline; 
+    missions: Mission[]; 
+    onNavigate?: (tab: string, subNav?: string, state?: any) => void 
+}> = ({ timeline, missions, onNavigate }) => {
     const getTheme = (diff: string) => {
         switch (diff) {
             case 'Easy': return 'border-green-500/30 bg-green-900/5 hover:bg-green-900/10';
@@ -117,7 +137,13 @@ const TimelineTrack: React.FC<{ timeline: Timeline; missions: Mission[] }> = ({ 
 
                 {missions.length > 0 ? (
                     missions.map((mission, idx) => (
-                        <MissionNode key={mission.id} mission={mission} index={idx} difficulty={timeline.difficulty} />
+                        <MissionNode 
+                            key={mission.id} 
+                            mission={mission} 
+                            index={idx} 
+                            difficulty={timeline.difficulty} 
+                            onNavigate={onNavigate}
+                        />
                     ))
                 ) : (
                     <div className="text-center text-slate-600 text-sm py-10 italic">
@@ -129,7 +155,12 @@ const TimelineTrack: React.FC<{ timeline: Timeline; missions: Mission[] }> = ({ 
     );
 };
 
-const MissionNode: React.FC<{ mission: Mission; index: number; difficulty: string }> = ({ mission, index, difficulty }) => {
+const MissionNode: React.FC<{ 
+    mission: Mission; 
+    index: number; 
+    difficulty: string;
+    onNavigate?: (tab: string, subNav?: string, state?: any) => void 
+}> = ({ mission, index, difficulty, onNavigate }) => {
     const navigate = useNavigate();
 
     const getBorderColor = () => {
@@ -144,7 +175,11 @@ const MissionNode: React.FC<{ mission: Mission; index: number; difficulty: strin
 
     const handleStartMission = () => {
         if (mission.status === 'locked') return;
-        navigate('/apps/edumultiverse/time-loop', { state: { mission } });
+        if (onNavigate) {
+            onNavigate('Time Loop', undefined, { mission });
+        } else {
+            navigate('/apps/edumultiverse/time-loop', { state: { mission } });
+        }
     };
 
     return (

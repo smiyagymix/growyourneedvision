@@ -681,4 +681,15 @@ export const OVERLAY_CONFIG: Record<string, { tabs: string[], subnav: Record<str
     },
     'Help Center': { tabs: ['Home', 'Tickets', 'FAQ'], subnav: { 'Home': ['Search'], 'Tickets': ['My Tickets', 'New'], 'FAQ': ['Browse'] } },
     'Overlay Setting': { tabs: ['General', 'Display'], subnav: { 'General': ['Preferences'], 'Display': ['Resolution'] } },
+    'EduMultiverse': {
+        tabs: ['Map', 'Fusion Lab', 'Glitches', 'Quiz', 'Time Loop', 'Leaderboard'],
+        subnav: {
+            'Map': ['Universes', 'Anomalies'],
+            'Fusion Lab': ['Workbench', 'Recipes', 'Inventory'],
+            'Glitches': ['Active', 'Resolved'],
+            'Quiz': ['Daily', 'Challenge'],
+            'Time Loop': ['Current', 'History'],
+            'Leaderboard': ['Global', 'Friends']
+        }
+    },
 };

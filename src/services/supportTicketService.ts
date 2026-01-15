@@ -7,7 +7,7 @@ import { auditLogger } from './auditLogger';
  * Handles all support ticket operations with SLA tracking and automation
  */
 
-export interface SupportTicket extends RecordModel {
+export interface CoreSupportTicket extends RecordModel {
     title: string;
     description: string;
     status: 'open' | 'in_progress' | 'resolved' | 'closed' | 'escalated';
@@ -50,7 +50,7 @@ export interface UpdateTicketData {
     tags?: string[];
 }
 
-export interface TicketFilters {
+export interface SupportTicketFilters {
     status?: string;
     priority?: string;
     category?: string;
@@ -59,7 +59,7 @@ export interface TicketFilters {
     search?: string;
 }
 
-export interface TicketStats {
+export interface SupportTicketStats {
     total: number;
     byStatus: Record<string, number>;
     byPriority: Record<string, number>;
@@ -111,8 +111,8 @@ class SupportTicketService {
     async getTickets(
         page: number = 1,
         pageSize: number = 50,
-        filters?: TicketFilters
-    ): Promise<{ items: SupportTicket[]; totalItems: number; totalPages: number }> {
+        filters?: SupportTicketFilters
+    ): Promise<{ items: CoreSupportTicket[]; totalItems: number; totalPages: number }> {
         try {
             const filterParts: string[] = [];
 
@@ -143,7 +143,7 @@ class SupportTicketService {
 
             const filterQuery = filterParts.join(' && ');
 
-            const result = await pb.collection(this.collection).getList<SupportTicket>(page, pageSize, {
+            const result = await pb.collection(this.collection).getList<CoreSupportTicket>(page, pageSize, {
                 filter: filterQuery || undefined,
                 sort: '-created',
                 expand: 'tenant_id,assigned_to,reporter_id'
@@ -169,9 +169,9 @@ class SupportTicketService {
     /**
      * Get a single ticket by ID
      */
-    async getTicket(ticketId: string): Promise<SupportTicket> {
+    async getTicket(ticketId: string): Promise<CoreSupportTicket> {
         try {
-            const ticket = await pb.collection(this.collection).getOne<SupportTicket>(ticketId, {
+            const ticket = await pb.collection(this.collection).getOne<CoreSupportTicket>(ticketId, {
                 expand: 'tenant_id,assigned_to,reporter_id'
             });
 
@@ -188,7 +188,7 @@ class SupportTicketService {
     /**
      * Create a new support ticket
      */
-    async createTicket(data: CreateTicketData, createdBy?: string): Promise<SupportTicket> {
+    async createTicket(data: CreateTicketData, createdBy?: string): Promise<CoreSupportTicket> {
         try {
             const priority = data.priority || 'medium';
             const sla_due_date = this.calculateSLADueDate(priority);
@@ -206,7 +206,7 @@ class SupportTicketService {
                 tags: data.tags || []
             };
 
-            const newTicket = await pb.collection(this.collection).create<SupportTicket>(ticketData);
+            const newTicket = await pb.collection(this.collection).create<CoreSupportTicket>(ticketData);
 
             // Auto-assign based on category or workload
             await this.autoAssignTicket(newTicket.id);
@@ -234,7 +234,7 @@ class SupportTicketService {
     /**
      * Update an existing ticket
      */
-    async updateTicket(ticketId: string, data: UpdateTicketData, updatedBy?: string): Promise<SupportTicket> {
+    async updateTicket(ticketId: string, data: UpdateTicketData, updatedBy?: string): Promise<CoreSupportTicket> {
         try {
             const updateData: any = { ...data };
 
@@ -256,7 +256,7 @@ class SupportTicketService {
                 }
             }
 
-            const updatedTicket = await pb.collection(this.collection).update<SupportTicket>(ticketId, updateData);
+            const updatedTicket = await pb.collection(this.collection).update<CoreSupportTicket>(ticketId, updateData);
 
             // Audit log
             await auditLogger.log({
@@ -300,7 +300,7 @@ class SupportTicketService {
     /**
      * Assign ticket to a specific user
      */
-    async assignTicket(ticketId: string, userId: string, assignedBy?: string): Promise<SupportTicket> {
+    async assignTicket(ticketId: string, userId: string, assignedBy?: string): Promise<CoreSupportTicket> {
         try {
             const updatedTicket = await this.updateTicket(ticketId, {
                 assigned_to: userId,
@@ -328,7 +328,7 @@ class SupportTicketService {
     /**
      * Escalate a ticket
      */
-    async escalateTicket(ticketId: string, reason: string, escalatedBy?: string): Promise<SupportTicket> {
+    async escalateTicket(ticketId: string, reason: string, escalatedBy?: string): Promise<CoreSupportTicket> {
         try {
             const updatedTicket = await this.updateTicket(ticketId, {
                 status: 'escalated',
@@ -356,11 +356,11 @@ class SupportTicketService {
     /**
      * Get ticket statistics
      */
-    async getTicketStats(): Promise<TicketStats> {
+    async getTicketStats(): Promise<SupportTicketStats> {
         try {
-            const allTickets = await pb.collection(this.collection).getFullList<SupportTicket>();
+            const allTickets = await pb.collection(this.collection).getFullList<CoreSupportTicket>();
 
-            const stats: TicketStats = {
+            const stats: SupportTicketStats = {
                 total: allTickets.length,
                 byStatus: {},
                 byPriority: {},

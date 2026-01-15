@@ -3,6 +3,8 @@
  * Provides structured logging with different severity levels and monitoring
  */
 
+import { Metadata } from '../types/common';
+
 export enum LogLevel {
   DEBUG = 0,
   INFO = 1,
@@ -14,7 +16,7 @@ export interface LogEntry {
   timestamp: string;
   level: LogLevel;
   message: string;
-  context?: Record<string, unknown>;
+  context?: Metadata;
   error?: {
     name: string;
     message: string;
@@ -59,28 +61,28 @@ export class Logger {
   /**
    * Log at DEBUG level
    */
-  debug(message: string, context?: Record<string, unknown>, requestId?: string): void {
+  debug(message: string, context?: Metadata, requestId?: string): void {
     this.log(LogLevel.DEBUG, message, context, requestId);
   }
 
   /**
    * Log at INFO level
    */
-  info(message: string, context?: Record<string, unknown>, requestId?: string): void {
+  info(message: string, context?: Metadata, requestId?: string): void {
     this.log(LogLevel.INFO, message, context, requestId);
   }
 
   /**
    * Log at WARN level
    */
-  warn(message: string, context?: Record<string, unknown>, requestId?: string): void {
+  warn(message: string, context?: Metadata, requestId?: string): void {
     this.log(LogLevel.WARN, message, context, requestId);
   }
 
   /**
    * Log at ERROR level
    */
-  error(message: string, error?: Error | unknown, context?: Record<string, unknown>, requestId?: string): void {
+  error(message: string, error?: Error | unknown, context?: Metadata, requestId?: string): void {
     const errorObj = error instanceof Error
       ? {
         name: error.name,
@@ -103,7 +105,7 @@ export class Logger {
   private log(
     level: LogLevel,
     message: string,
-    context?: Record<string, unknown>,
+    context?: Metadata,
     requestId?: string,
     error?: LogEntry['error']
   ): void {
@@ -174,7 +176,7 @@ export class Logger {
   /**
    * End timer and log duration
    */
-  endTimer(label: string, context?: Record<string, unknown>): number {
+  endTimer(label: string, context?: Metadata): number {
     const startTime = this.timers.get(label);
     if (!startTime) {
       console.warn(`Timer "${label}" not found`);
@@ -251,7 +253,8 @@ export class Logger {
     let result = [...this.logs];
 
     if (filter?.level !== undefined) {
-      result = result.filter((log) => log.level >= filter.level);
+      const level = filter.level;
+      result = result.filter((log) => log.level >= level);
     }
 
     if (filter?.startTime) {
@@ -345,7 +348,7 @@ export class Logger {
     const child = new Logger(this.config);
     const originalLog = child.log.bind(child);
 
-    child.log = (level: LogLevel, message: string, context?: Record<string, unknown>, requestId?: string, error?: any) => {
+    child.log = (level: LogLevel, message: string, context?: Metadata, requestId?: string, error?: LogEntry['error']) => {
       return originalLog(level, `[${prefix}] ${message}`, context, requestId, error);
     };
 
@@ -392,11 +395,11 @@ export const globalLogger = new Logger({
  * Logger decorator for methods
  */
 export function logMethod(prefix?: string) {
-  return (target: any, propertyKey: string, descriptor: PropertyDescriptor) => {
+  return (target: object, propertyKey: string, descriptor: PropertyDescriptor) => {
     const originalMethod = descriptor.value;
     const methodPrefix = prefix || target.constructor.name;
 
-    descriptor.value = function (...args: any[]) {
+    descriptor.value = function (this: unknown, ...args: unknown[]) {
       const label = `${methodPrefix}.${propertyKey}`;
       globalLogger.startTimer(label);
       globalLogger.debug(`Calling ${label}`, { args });

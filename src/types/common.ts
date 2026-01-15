@@ -6,10 +6,26 @@
  */
 
 import { RecordModel } from 'pocketbase';
+import { z } from 'zod';
+
+// Zod schema for recursive metadata
+export const MetadataValueSchema: z.ZodType<any> = z.lazy(() =>
+  z.union([
+    z.string(),
+    z.number(),
+    z.boolean(),
+    z.date(),
+    z.null(),
+    z.array(z.lazy(() => MetadataValueSchema)),
+    z.record(z.string(), z.lazy(() => MetadataValueSchema))
+  ])
+);
+
+export type MetadataValue = z.infer<typeof MetadataValueSchema>;
 
 // Generic metadata that's actually typed
 export interface Metadata {
-  [key: string]: string | number | boolean | Date | null | Metadata | unknown[];
+  [key: string]: MetadataValue;
 }
 
 // For analytics and event tracking

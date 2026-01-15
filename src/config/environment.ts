@@ -26,6 +26,10 @@ interface EnvironmentConfig {
   // External Services
   resendApiKey: string;
   sentryDsn: string;
+  twilioAccountSid: string;
+  twilioAuthToken: string;
+  twilioFromNumber: string;
+  messagebirdApiKey: string;
 
   // Redis
   upstashRedisUrl: string;
@@ -99,6 +103,10 @@ class Environment {
       // External Services
       resendApiKey: this.getEnvVar('VITE_RESEND_API_KEY', ''),
       sentryDsn: this.getEnvVar('VITE_SENTRY_DSN', ''),
+      twilioAccountSid: this.getEnvVar('VITE_TWILIO_ACCOUNT_SID', ''),
+      twilioAuthToken: this.getEnvVar('VITE_TWILIO_AUTH_TOKEN', ''),
+      twilioFromNumber: this.getEnvVar('VITE_TWILIO_FROM_NUMBER', ''),
+      messagebirdApiKey: this.getEnvVar('VITE_MESSAGEBIRD_API_KEY', ''),
 
       // Redis
       upstashRedisUrl: this.getEnvVar('VITE_UPSTASH_REDIS_REST_URL', ''),
